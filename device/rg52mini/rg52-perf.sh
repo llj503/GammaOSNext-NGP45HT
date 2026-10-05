@@ -308,8 +308,13 @@ if [ -n "$DMC" ]; then
     # бы её на 324 МГц - так и было, пока здесь стояла запись в min_freq.
     # Регулятор performance держит max_freq, а его HAL не трогает. В остальных
     # режимах возвращается штатный dmc_ondemand.
-    if [ "$DDR_MIN" = max ]; then
+    # Только при включённом экране: при выключенном память ведёт dmc_ondemand
+    # (rg52-perf.rc, триггеры sys.screen.state), иначе режим, применённый при
+    # погашенном экране, вернул бы 928 МГц на время сна.
+    if [ "$DDR_MIN" = max ] && [ "$(getprop sys.screen.state)" != off ]; then
         w "$DMC/governor" performance
+    elif [ "$DDR_MIN" = max ]; then
+        [ "$(cat "$DMC/governor" 2>/dev/null)" = dmc_ondemand ] || w "$DMC/governor" dmc_ondemand
     else
         [ "$(cat "$DMC/governor" 2>/dev/null)" = dmc_ondemand ] || w "$DMC/governor" dmc_ondemand
     fi

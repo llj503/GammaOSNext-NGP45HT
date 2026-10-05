@@ -74,6 +74,28 @@ on property:persist.gammaos.performance_mode=overclock
 on property:sys.boot_completed=1
     start rg52_perf_boot
 
+# Память в max и overclock - только пока экран включён. Там она держится регулятором
+# performance на верхней ступени (HAL питания сбрасывает min_freq, см. rg52-perf.sh),
+# а этот регулятор не отпускает частоту и после выключения экрана: без USB ядро
+# почти сразу засыпает, и BL31 переводит память в self-refresh на 928 МГц
+# (разгон). На плате ревизии A это давало перезагрузку по каждому нажатию питания
+# в max и overclock (жалоба 05.10.2026; в v1.5 пол был 780 под dmc_ondemand, и
+# при простое память опускалась). Частоты для статуса SUSPEND в дереве нет, так
+# что опустить её может только штатный dmc_ondemand по нагрузке - ему память и
+# отдаётся при выключении экрана, а при включении возвращается performance.
+# Действия init, без запуска скрипта: успевают до засыпания ядра.
+on property:sys.screen.state=off && property:persist.gammaos.performance_mode=max
+    write /sys/class/devfreq/dmc/governor dmc_ondemand
+
+on property:sys.screen.state=off && property:persist.gammaos.performance_mode=overclock
+    write /sys/class/devfreq/dmc/governor dmc_ondemand
+
+on property:sys.screen.state=on && property:persist.gammaos.performance_mode=max
+    write /sys/class/devfreq/dmc/governor performance
+
+on property:sys.screen.state=on && property:persist.gammaos.performance_mode=overclock
+    write /sys/class/devfreq/dmc/governor performance
+
 # Интервал опроса геймпада задаётся вручную (persist.rg52.joypad.poll_ms) и
 # применяется сразу: без аргумента скрипт заново применяет текущий режим, а с ним
 # и интервал. До загрузки не нужно - тогда его применит rg52_perf_boot.
