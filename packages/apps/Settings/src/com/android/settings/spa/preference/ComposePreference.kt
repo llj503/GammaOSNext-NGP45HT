@@ -17,7 +17,12 @@
 package com.android.settings.spa.preference
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.AttributeSet
+import android.view.InputDevice
+import android.view.KeyEvent
+import android.view.MotionEvent
+import android.view.View
 import androidx.annotation.VisibleForTesting
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.ComposeView
@@ -61,6 +66,37 @@ open class ComposePreference @JvmOverloads constructor(
                     content()
                 }
             }
+            // RG52: нажатие с крестовины. Фокус списка настроек стоит на строке
+            // (ComposeView), а не на кликабельном элементе Compose внутри неё, и
+            // DPAD_CENTER уходил в никуда: «Developer options» в System, сброс
+            // Bluetooth и Wi-Fi в Reset options и другие ComposePreference не
+            // открывались с крестовины, только касанием. Касание Compose
+            // обрабатывает правильно, поэтому «Enter» на строке превращается в
+            // касание её центра. Если фокус уже внутри Compose, клавишу получает
+            // элемент Compose, а не этот обработчик.
+            setOnKeyListener { v, keyCode, event ->
+                if (keyCode != KeyEvent.KEYCODE_DPAD_CENTER && keyCode != KeyEvent.KEYCODE_ENTER &&
+                    keyCode != KeyEvent.KEYCODE_NUMPAD_ENTER && keyCode != KeyEvent.KEYCODE_BUTTON_A
+                ) {
+                    return@setOnKeyListener false
+                }
+                if (event.action == KeyEvent.ACTION_UP) tapCenter(v)
+                true
+            }
         }
+    }
+
+    private fun tapCenter(v: View) {
+        val x = v.width / 2f
+        val y = v.height / 2f
+        val t = SystemClock.uptimeMillis()
+        val down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, x, y, 0)
+        down.source = InputDevice.SOURCE_TOUCHSCREEN
+        v.dispatchTouchEvent(down)
+        down.recycle()
+        val up = MotionEvent.obtain(t, t + 40, MotionEvent.ACTION_UP, x, y, 0)
+        up.source = InputDevice.SOURCE_TOUCHSCREEN
+        v.dispatchTouchEvent(up)
+        up.recycle()
     }
 }
