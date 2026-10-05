@@ -66,16 +66,13 @@
         <!-- TODO(b/295161958) check if this can be removed safely -->
         <activity android:name=".usb.UsbDebuggingSecondaryUserActivity"
             tools:node="remove" />
-        <!-- TODO(b/295161958) check if this can be removed safely -->
-        <activity android:name=".wifi.WifiDebuggingActivity"
-            tools:node="remove" />
-        <!-- TODO(b/295161958) check if this can be removed safely -->
-        <activity-alias android:name=".WifiDebuggingActivityAlias"
-            android:targetActivity=".wifi.WifiDebuggingActivity"
-            tools:node="remove" />
-        <!-- TODO(b/295161958) check if this can be removed safely -->
-        <activity android:name=".wifi.WifiDebuggingSecondaryUserActivity"
-            tools:node="remove" />
+        <!-- RG52: окна подтверждения отладки по Wi-Fi (WifiDebuggingActivity, его
+             псевдоним и вариант для второго пользователя) НЕ вырезаем. AdbDebuggingManager
+             запускает их по config_customAdbWifiNetworkConfirmation*Component, а ATV-оверлей
+             этот ресурс на TV-окно не переключает: без них включение отладки по Wi-Fi
+             молча не срабатывало («Unable to start ... WifiDebuggingActivity ... not
+             found»). Своей зависимости от Dagger у окон нет - их создаёт фабрика
+             компонентов SystemUI обычным конструктором. -->
         <!-- TODO(b/295161958) check if this can be removed safely -->
         <activity android:name=".net.NetworkOverLimitActivity"
             tools:node="remove" />
