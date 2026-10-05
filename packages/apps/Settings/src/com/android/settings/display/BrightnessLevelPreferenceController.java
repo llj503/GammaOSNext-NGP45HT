@@ -19,8 +19,10 @@ import static android.content.Intent.EXTRA_BRIGHTNESS_DIALOG_IS_FULL_WIDTH;
 import static com.android.settingslib.display.BrightnessUtils.GAMMA_SPACE_MAX;
 import static com.android.settingslib.display.BrightnessUtils.GAMMA_SPACE_MIN;
 import static com.android.settingslib.display.BrightnessUtils.convertLinearToGammaFloat;
+import static com.android.settingslib.display.BrightnessUtils.convertGammaToLinearFloat;
 
 import android.app.ActivityOptions;
+import android.app.AlertDialog;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -33,6 +35,9 @@ import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings.System;
 import android.text.TextUtils;
+import android.widget.SeekBar;
+
+import com.android.internal.display.BrightnessSynchronizer;
 
 import androidx.preference.Preference;
 import androidx.preference.PreferenceScreen;
@@ -143,11 +148,61 @@ public class BrightnessLevelPreferenceController extends AbstractPreferenceContr
                 SettingsTransitionHelper.TransitionType.TRANSITION_NONE);
         intent.putExtra(EXTRA_BRIGHTNESS_DIALOG_IS_FULL_WIDTH, true);
 
+        // RG52: окно яркости (SHOW_BRIGHTNESS_DIALOG) живёт в SystemUI, а у нас
+        // TvSystemUI, который его вырезает: startActivity падал с
+        // ActivityNotFoundException, и настройки закрывались. Окно создаётся
+        // через Dagger с зависимостями, которых у TV-варианта нет, поэтому
+        // вместо возврата окна - свой диалог с ползунком в той же гамма-шкале.
+        if (intent.resolveActivity(mContext.getPackageManager()) == null) {
+            showFallbackBrightnessDialog(preference);
+            return true;
+        }
+
         // Start activity in the same task and pass fade animations
         final ActivityOptions options = ActivityOptions.makeCustomAnimation(mContext,
                 android.R.anim.fade_in, android.R.anim.fade_out);
         mContext.startActivityForResult(preference.getKey(), intent, 0, options.toBundle());
         return true;
+    }
+
+    private void showFallbackBrightnessDialog(Preference preference) {
+        final BrightnessInfo info = mContext.getDisplay().getBrightnessInfo();
+        final float min = info != null ? info.brightnessMinimum : 0f;
+        final float max = info != null ? info.brightnessMaximum : 1f;
+        final SeekBar bar = new SeekBar(mContext);
+        bar.setMax(GAMMA_SPACE_MAX);
+        bar.setKeyProgressIncrement(Math.max(1, GAMMA_SPACE_MAX / 50));
+        if (info != null) {
+            bar.setProgress(convertLinearToGammaFloat(info.brightness, min, max));
+        }
+        final int pad = Math.round(24 * mContext.getResources().getDisplayMetrics().density);
+        bar.setPadding(pad, pad, pad, pad);
+        bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                if (!fromUser) {
+                    return;
+                }
+                final float linear = convertGammaToLinearFloat(progress, min, max);
+                System.putInt(mContentResolver, System.SCREEN_BRIGHTNESS,
+                        BrightnessSynchronizer.brightnessFloatToInt(linear));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+        new AlertDialog.Builder(mContext)
+                .setTitle(preference.getTitle())
+                .setView(bar)
+                .setPositiveButton(android.R.string.ok, null)
+                .setOnDismissListener(d -> updatedSummary(mPreference))
+                .show();
+        bar.requestFocus();
     }
 
     private void updatedSummary(Preference preference) {
