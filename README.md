@@ -41,6 +41,7 @@ Flycast, DraStic, mupen64plus, Daijishō, и вырезана телефония
 
 | Выпуск | Дата | Коротко |
 |---|---|---|
+| [v1.7](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.7) — [подробности](doc/rg52mini/release-v1.7.md) | 06.10.2026 | Исправления: перезагрузка плат ревизии A по кнопке питания; яркость, Developer options и отладка по Wi-Fi в системных настройках; частоты графики в Power Saver и при загрузке |
 | [v1.6](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.6) — [подробности](doc/rg52mini/release-v1.6.md) | 04.10.2026 | Режим Overclock (2208/1000 МГц) и настоящая частота в меню питания; сон и пробуждение с HDMI; исправлен чёрный экран на платах ревизии A; изменения апстрима GammaOS до 1.4.4, Bluetooth выключен на чистой установке |
 | [v1.5](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.5) — [подробности](doc/rg52mini/release-v1.5.md) | 02.10.2026 | Звук по HDMI, выбор режима HDMI и зеркалирование сразу; подсветка стиков; на 24 МиБ больше памяти и загрузка быстрее; разгон памяти одним скриптом; zRAM в процентах; игры из папок EmuELEC в библиотеке |
 | [v1.4](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.4) — [подробности](doc/rg52mini/release-v1.4.md) | 28.09.2026 | Первое обновление по воздуху — с v1.3 карту вынимать не нужно; перезагрузка в систему на внутренней памяти; Bluetooth больше не роняет ядро при выключении; выбранный режим производительности переживает перезагрузку |
