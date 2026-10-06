@@ -17,9 +17,23 @@ for f in patched stock; do
 done
 PS=$(sha256sum < "$T/patched.bin" | cut -d' ' -f1)
 SS=$(sha256sum < "$T/stock.bin" | cut -d' ' -f1)
+# Длина данных копии idblock в штатном образе (до последнего ненулевого байта,
+# с округлением до 16) и хеш данных обеих копий без хвоста - для узнавания
+# штатного загрузчика с мусором в неиспользуемом хвосте области.
+read DB DS < <(python3 - "$T/stock.bin" <<'PY'
+import sys, hashlib
+b = open(sys.argv[1], "rb").read()
+C = 0x80000
+end = max(len(b[0:C].rstrip(b"\0")), len(b[C:2 * C].rstrip(b"\0")))
+blocks = (end + 15) // 16
+n = blocks * 16
+print(blocks, hashlib.sha256(b[0:n] + b[C:C + n]).hexdigest())
+PY
+)
 
 {
-    sed -e "s/@PATCHED_SHA@/$PS/" -e "s/@STOCK_SHA@/$SS/" "$D/install-ddr928.sh.in"
+    sed -e "s/@PATCHED_SHA@/$PS/" -e "s/@STOCK_SHA@/$SS/" \
+        -e "s/@STOCK_DATA_SHA@/$DS/" -e "s/@STOCK_DATA_BLOCKS@/$DB/" "$D/install-ddr928.sh.in"
     for f in PATCHED STOCK; do
         echo "__${f}_BEGIN__"
         gzip -9n < "$T/$(echo $f | tr A-Z a-z).bin" | base64 -w 76
@@ -30,3 +44,4 @@ chmod 755 "$OUT"
 echo "$OUT: $(stat -c %s "$OUT") байт"
 echo "  наш:      $PS"
 echo "  стоковый: $SS"
+echo "  стоковый, только данные: $DS ($DB блоков по 16 байт на копию)"

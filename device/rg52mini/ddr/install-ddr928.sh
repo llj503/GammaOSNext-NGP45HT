@@ -27,6 +27,8 @@ SECTOR_COUNT=2048      # обе копии, 1 МиБ
 BACKUP_COUNT=16320     # для резервной копии - вся область до первого раздела
 PATCHED_SHA=b208ba40855fbaa0b9def64bbd6cdfad1e83229507497dabc6639a0e943e9b2c
 STOCK_SHA=9d9bf253688bc6743fc444d2b72b3f0f19c292b156635b37820ead803ad4510c
+STOCK_DATA_SHA=4a275e8157cb7f2022e92d304c97a6310bcde97fe87a6793ab231c77d8396640   # данные обеих копий без хвоста
+STOCK_DATA_BLOCKS=19699   # длина данных копии в 16-байтных блоках
 FREQ_STOCK_MAX=798000000
 FREQ_PATCHED_MAX=928000000
 
@@ -128,10 +130,26 @@ SPL_VER=$(LC_ALL=C grep -a -o -m 1 'U-Boot SPL 20[^)]*)' "$WORK/cur.bin" | head 
 info "DDR blob: ${DDR_VER:-not found}"
 info "SPL:      ${SPL_VER:-not found}"
 
+# Хеш только данных загрузчика: обе копии idblock до конца их образов, без хвоста
+# копии. Хвост не входит в образы, которые проверяет BootROM (их SHA-256 записаны в
+# заголовке idblock), и на части устройств там лежат остатки прежнего, более
+# длинного загрузчика: на плате ревизии A загрузчик побайтно штатный, а в хвосте
+# каждой копии 487 байт мусора, и сверка по всей области его не узнавала (05.10.2026).
+data_sha() {   # $1 - файл области загрузчика
+    { dd if="$1" bs=16 count=$STOCK_DATA_BLOCKS 2>/dev/null
+      dd if="$1" bs=16 skip=32768 count=$STOCK_DATA_BLOCKS 2>/dev/null; } |
+        sha256sum | cut -d' ' -f1
+}
+
 if [ "$CUR_SHA" = "$PATCHED_SHA" ]; then
     STATE=patched; info "Loader on eMMC: 928 MHz version from this script"
 elif [ "$CUR_SHA" = "$STOCK_SHA" ]; then
     STATE=stock; info "Loader on eMMC: stock 798 MHz version this patch was made from"
+elif [ "$(data_sha "$WORK/cur.bin")" = "$STOCK_DATA_SHA" ]; then
+    STATE=stock
+    info "Loader on eMMC: stock 798 MHz version this patch was made from"
+    info "  (only the unused tail of the loader area differs: leftovers of an older loader;"
+    info "   installing rewrites the whole area and clears them)"
 else
     STATE=unknown; info "Loader on eMMC: unknown version (sha256 $CUR_SHA)"
 fi
