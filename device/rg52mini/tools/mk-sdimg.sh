@@ -102,15 +102,24 @@ if [ -z "$SYSIMG" ]; then
     SYSIMG=$(ls -t "$TREE"/out/home/build-output/*.img 2>/dev/null | head -1 || true)
 fi
 [ -n "$SYSIMG" ] && [ -f "$SYSIMG" ] || { echo "не найден system.img (укажи первым аргументом)" >&2; exit 1; }
+# initrd: урезанный initrd.zst (шаг K2), если он есть, иначе прежний initrd.gz.
+# В initrd.gz из эталона 347 модулей чужого ядра 5.10.107 - 82 МБ из 122 МБ
+# распакованного. С нашим ядром 5.10.226 ни один из них не грузится (загружены
+# только aic8800 из vendor), а u-boot читает их с карты и ядро распаковывает на
+# каждой загрузке: около 4,2 с. В initrd.zst те же 569 файлов побайтно, без
+# модулей, сжато zstd (CONFIG_RD_ZSTD=y): 10,9 МБ вместо 44 МБ на карте.
+INITRD=initrd.zst
+[ -f "$BOOTDIR/$INITRD" ] || INITRD=initrd.gz
+
 # Всё, без чего карта не загрузится: замены из эталона больше нет.
 for f in "$IDBLOCK" "$BOOTDIR/vendor-storage.bin" "$BOOTDIR/vendor.img.xz" \
-         "$BOOTDIR/rk3562-rg52mini.dtb" "$BOOTDIR/initrd.gz" \
+         "$BOOTDIR/rk3562-rg52mini.dtb" "$BOOTDIR/$INITRD" \
          "$UBOOTDIR/uboot.img" "$KERNELDIR/Image"; do
     [ -f "$f" ] || { echo "не найден $f" >&2; exit 1; }
 done
 # initrd.gz и vendor.img.xz лежат в git LFS: без git lfs pull на их месте
 # текстовые заглушки по сотне байт, и карта не загрузится.
-if [ "$(stat -c %s "$BOOTDIR/initrd.gz")" -lt 1048576 ] ||
+if [ "$(stat -c %s "$BOOTDIR/$INITRD")" -lt 1048576 ] ||
    [ "$(stat -c %s "$BOOTDIR/vendor.img.xz")" -lt 1048576 ]; then
     echo "в $BOOTDIR заглушки git LFS вместо файлов - сделай git lfs pull" >&2
     exit 1
@@ -230,7 +239,8 @@ echo "== загрузочный FAT"
 sudo mkfs.vfat -F 32 -s 1 -S 512 -R 32 -f 2 -i A96B415C -h 32768 "${LOOP}p3" > /dev/null
 sudo mkdir -p /mnt/imgboot && sudo mount "${LOOP}p3" /mnt/imgboot
 sudo mkdir -p /mnt/imgboot/extlinux
-for f in rk3562-rg52mini.dtb initrd.gz battery_0.bmp battery_1.bmp battery_2.bmp \
+echo "   initrd: $INITRD ($(stat -c %s "$BOOTDIR/$INITRD") байт)"
+for f in rk3562-rg52mini.dtb $INITRD battery_0.bmp battery_1.bmp battery_2.bmp \
          battery_3.bmp battery_4.bmp battery_5.bmp battery_fail.bmp; do
     sudo cp "$BOOTDIR/$f" /mnt/imgboot/$f
 done
@@ -506,7 +516,7 @@ sync
 # на отсчёте autoboot.
 echo "== правлю extlinux.conf"
 sudo mkdir -p /mnt/imgboot && sudo mount "${LOOP}p3" /mnt/imgboot
-sudo tee /mnt/imgboot/extlinux/extlinux.conf > /dev/null <<'EOF'
+sudo tee /mnt/imgboot/extlinux/extlinux.conf > /dev/null <<EOF
 DEFAULT GammaOS
 TIMEOUT 10
 
@@ -514,7 +524,7 @@ LABEL GammaOS
     MENU LABEL GammaOS Core
     LINUX /Image
     FDT /rk3562-rg52mini.dtb
-    INITRD /initrd.gz
+    INITRD /$INITRD
     APPEND console=ttyFIQ0 firmware_class.path=/vendor/lib/firmware init=/init rootwait ro loop.max_part=7 8250.nr_uarts=10 storagemedia=sd androidboot.hardware=rk30board androidboot.boot_devices=ff880000.mmc androidboot.storagemedia=sd androidboot.mode=normal androidboot.force_normal_boot=1 androidboot.veritymode=disabled printk.devkmsg=on loglevel=7 fbcon=rotate:1 androidboot.selinux=permissive rodata=on dhash_entries=131072 ihash_entries=65536
 EOF
 sync
