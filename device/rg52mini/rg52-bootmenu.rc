@@ -1,6 +1,9 @@
-# Флаг пункта «Internal memory» в меню u-boot общей карты, см. rg52-bootmenu.sh.
-# Сверка на каждой загрузке (обновление по воздуху переписывает FAT целиком) и
-# при каждом переключении «Allow reboot to eMMC» в GammaOS Toolbox.
+# Флаги для меню u-boot общей карты (bootmenu_ready, bootmenu_emmc), см.
+# rg52-bootmenu.sh. Сверка на каждой загрузке (обновление по воздуху переписывает
+# FAT целиком), при каждом переключении «Allow reboot to eMMC» в GammaOS Toolbox
+# и по окончании setup.sh (он ставит persist.gammaos.setupwizard_done=1 при
+# выходе, уже создав /data/setupcompleted) - чтобы меню появилось с первой же
+# перезагрузки после мастера настройки.
 
 service rg52_bootmenu /system/bin/rg52-bootmenu.sh
     user root
@@ -13,4 +16,7 @@ on property:sys.boot_completed=1
     start rg52_bootmenu
 
 on property:persist.rg52.reboot_emmc=* && property:sys.boot_completed=1
+    start rg52_bootmenu
+
+on property:persist.gammaos.setupwizard_done=1 && property:sys.boot_completed=1
     start rg52_bootmenu
