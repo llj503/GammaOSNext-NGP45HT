@@ -39,6 +39,10 @@ Flycast, DraStic, mupen64plus, Daijishō, и вырезана телефония
 ничего не нужно: записал на карту, вставил, включил. При первой загрузке раздел
 `userdata` сам растягивается на всю карту.
 
+Нужны на одной карте и GammaOS, и dArkOS — есть готовая общая карта с меню
+выбора системы при включении: [RG52mini-dualboot](https://github.com/mamaich/RG52mini-dualboot/releases/tag/v1.0). GammaOS на ней та
+же, что в выпусках здесь, и обновляется по воздуху тем же пакетом.
+
 | Выпуск | Дата | Коротко |
 |---|---|---|
 | [v1.9](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.9) — [подробности](doc/rg52mini/release-v1.9.md) | 08.10.2026 | Загрузчик с меню выбора системы для общей карты dArkOS + GammaOS; на обычной карте всё как раньше |
