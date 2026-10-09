@@ -1,12 +1,12 @@
 {
     "response": [
         {
-            "datetime": 1791316208,
-            "filename": "GammaOSCore-RG52Mini-20261006-2316-ota.zip",
-            "id": "01f5a8f806f676c21825ffea49cecea1397db364766e0725ecf75283eb65475c",
+            "datetime": 1791480522,
+            "filename": "GammaOSCore-RG52Mini-20261008-2036-ota.zip",
+            "id": "3245f366d69b848017cb67f31cfc4e1d299611d524cd0d3467355552491a41fc",
             "romtype": "UNOFFICIAL",
-            "size": 1794362728,
-            "url": "https://github.com/mamaich/GammaOSNext-RG52mini/releases/download/v1.8/GammaOSCore-RG52Mini-20261006-2316-ota.zip",
+            "size": 1794317204,
+            "url": "https://github.com/mamaich/GammaOSNext-RG52mini/releases/download/v1.9/GammaOSCore-RG52Mini-20261008-2036-ota.zip",
             "version": "14"
         }
     ]
