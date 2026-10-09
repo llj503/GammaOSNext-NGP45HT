@@ -41,6 +41,7 @@ Flycast, DraStic, mupen64plus, Daijishō, и вырезана телефония
 
 | Выпуск | Дата | Коротко |
 |---|---|---|
+| [v1.9](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.9) — [подробности](doc/rg52mini/release-v1.9.md) | 08.10.2026 | Загрузчик с меню выбора системы для общей карты dArkOS + GammaOS; на обычной карте всё как раньше |
 | [v1.8](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.8) — [подробности](doc/rg52mini/release-v1.8.md) | 06.10.2026 | Исправления: снова работает KernelSU, загрузка на ~5 с быстрее, разгон памяти ставится на ревизии A |
 | [v1.7](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.7) — [подробности](doc/rg52mini/release-v1.7.md) | 06.10.2026 | Исправления: перезагрузка плат ревизии A по кнопке питания; яркость, Developer options и отладка по Wi-Fi в системных настройках; частоты графики в Power Saver и при загрузке |
 | [v1.6](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.6) — [подробности](doc/rg52mini/release-v1.6.md) | 04.10.2026 | Режим Overclock (2208/1000 МГц) и настоящая частота в меню питания; сон и пробуждение с HDMI; исправлен чёрный экран на платах ревизии A; изменения апстрима GammaOS до 1.4.4, Bluetooth выключен на чистой установке |
