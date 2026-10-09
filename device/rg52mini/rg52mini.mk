@@ -242,9 +242,10 @@ PRODUCT_COPY_FILES += \
     device/rg52mini/rg52-emmc-setup.sh:system/bin/rg52-emmc-setup.sh \
     device/rg52mini/rg52-emmc-setup.rc:system/etc/init/rg52-emmc-setup.rc
 
-# Флаг пункта «Internal memory» в меню u-boot общей карты dArkOS + GammaOS: файл
-# bootmenu_emmc на нашем загрузочном FAT следует за тем же переключателем
-# «Allow reboot to eMMC», см. rg52-bootmenu.sh.
+# Флаги меню u-boot общей карты dArkOS + GammaOS на нашем загрузочном FAT:
+# bootmenu_ready - мастер настройки пройден, меню можно показывать;
+# bootmenu_emmc - пункт внутренней памяти, за переключателем «Allow reboot to
+# eMMC». См. rg52-bootmenu.sh.
 PRODUCT_COPY_FILES += \
     device/rg52mini/rg52-bootmenu.sh:system/bin/rg52-bootmenu.sh \
     device/rg52mini/rg52-bootmenu.rc:system/etc/init/rg52-bootmenu.rc

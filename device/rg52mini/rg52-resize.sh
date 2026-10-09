@@ -24,7 +24,7 @@ log() { echo "rg52-resize: $*" > /dev/kmsg; echo "$(date) $*" >> "$LOG"; }
 [ -e "$DONE" ] && exit 0
 
 # Раздел userdata ищется по имени, а не по номеру: на общей карте dArkOS + GammaOS
-# (сессия dualboot, 08.10.2026) у него другой номер, чем на нашей (p9), и номер
+# (с v1.9) у него другой номер, чем на нашей (p9), и номер
 # может поменяться при любой перестановке разделов. Диск - родитель раздела в
 # sysfs, номер - его атрибут partition.
 PART=$(readlink -f /dev/block/by-name/userdata 2>/dev/null)
