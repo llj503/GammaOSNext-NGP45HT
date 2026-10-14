@@ -1,0 +1,8 @@
+--- a/system/build.prop
++++ b/system/build.prop
+@@ -302,3 +302,3 @@
+ # NGP45HT: panel is natively 1024x768 landscape (RG52mini is 640x480 portrait)
+-ro.surface_flinger.primary_display_orientation=ORIENTATION_90
+-persist.rg52.fixed_rotation=1
++ro.surface_flinger.primary_display_orientation=ORIENTATION_0
++persist.rg52.fixed_rotation=0

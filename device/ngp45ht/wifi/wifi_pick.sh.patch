@@ -1,0 +1,10 @@
+--- a/vendor/bin/wifi_pick.sh	2026-10-14 21:44:21.278781999 +0800
++++ b/vendor/bin/wifi_pick.sh	2026-10-14 21:44:21.276781979 +0800
+@@ -57,5 +57,5 @@
+     log -t wifi_pick "RK915 не загрузился, ждать нечего, гружу AIC8800 сразу"
+ fi
+ 
+-insmod /vendor/lib/modules/aic8800_bsp.ko
+-insmod /vendor/lib/modules/aic8800_fdrv.ko
++insmod /vendor/lib/modules/aic_load_fw_usb.ko aic_fw_path=/vendor/etc/firmware/aic8800
++insmod /vendor/lib/modules/aic8800_fdrv_usb.ko

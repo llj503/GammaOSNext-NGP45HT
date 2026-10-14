@@ -1,0 +1,11 @@
+# rg52-retroarch.rc — deploy RetroArch zh-CN font + config into the app's
+# external files dir on first boot. Staged in /vendor/etc/retroarch-zh,
+# deployed by /vendor/bin/rg52-retroarch-zh.sh (idempotent).
+service rg52_retroarch_zh /vendor/bin/rg52-retroarch-zh.sh
+    user root
+    group root
+    oneshot
+    disabled
+
+on property:sys.boot_completed=1
+    start rg52_retroarch_zh

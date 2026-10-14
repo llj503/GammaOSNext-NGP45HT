@@ -1,0 +1,20 @@
+# NGP45HT gamepad — driver rk3562-joystick.c (compatible "play_joystick")
+# Input device name: retrogame_joypad
+# 17 GPIO buttons per rk3562-ngp45ht.dts key-gpios-map + 4 ADC sticks
+key 304   BUTTON_A       # BTN_SOUTH
+key 305   BUTTON_B       # BTN_EAST
+key 307   BUTTON_X       # BTN_NORTH
+key 308   BUTTON_Y       # BTN_WEST
+key 310   BUTTON_L1      # BTN_TL
+key 311   BUTTON_R1      # BTN_TR
+key 312   BUTTON_L2      # BTN_TL2
+key 313   BUTTON_R2      # BTN_TR2
+key 314   BUTTON_SELECT  # BTN_SELECT
+key 315   BUTTON_START   # BTN_START
+key 316   HOME           # BTN_MODE
+key 317   BUTTON_THUMBL  # BTN_THUMBL
+key 318   BUTTON_THUMBR  # BTN_THUMBR
+key 544   DPAD_UP        # BTN_DPAD_UP
+key 545   DPAD_DOWN      # BTN_DPAD_DOWN
+key 546   DPAD_LEFT      # BTN_DPAD_LEFT
+key 547   DPAD_RIGHT     # BTN_DPAD_RIGHT

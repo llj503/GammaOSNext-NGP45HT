@@ -130,3 +130,13 @@ Flycast, DraStic, mupen64plus, Daijishō, и вырезана телефония
 Подробнее про всю сборку, включая образ SD-карты и то, откуда в нём берутся
 ядро и модули Wi-Fi, — в [doc/rg52mini/03-сборка.md](doc/rg52mini/03-сборка.md).
 Разбор решений и находок — в [doc/rg52mini/02-план.md](doc/rg52mini/02-план.md).
+
+## Порт на Xifan NGP45H (RK3562)
+
+Тот же подход, что и для RG52 Mini, но для кнопочного портативного компьютера
+Xifan NGP45H: RK3562, ландшафтный экран DSI 1024×768, геймпад micro-gamepad,
+Wi-Fi AIC8800DC по USB. Ядро и DTB собираются из
+[mamaich/kernel_rk3562_rg52mini](https://github.com/mamaich/kernel_rk3562_rg52mini)
+с патчами из `device/ngp45ht/kernel-patches/`; изменения vendor (USB-модули
+Wi-Fi, RetroArch с китайским шрифтом) — в `device/ngp45ht/`. Полное описание
+переноса (на китайском): [doc/ngp45ht/README.md](doc/ngp45ht/README.md).

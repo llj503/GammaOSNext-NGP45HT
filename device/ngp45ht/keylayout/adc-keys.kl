@@ -1,0 +1,5 @@
+# NGP45HT adc-keys — SARADC ladder (adc-keys-ngp node)
+key 114   VOLUME_DOWN
+key 115   VOLUME_UP
+key 113   MENU
+key 1     BACK
