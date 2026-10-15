@@ -1,0 +1,17 @@
+# NGP45HT (RK3562) — WiFi 加固与看门狗
+# 一次性加固：WiFi 设置 / 输入法 / AIC8800DC USB 电源管理
+service rg52_wifi_fix /vendor/bin/rg52-wifi-fix.sh
+    user root
+    group root
+    oneshot
+    disabled
+
+# 常驻看门狗：驱动被 USB 挂起 latch 成假死时自动重载
+service rg52_wifi_watchdog /vendor/bin/rg52-wifi-watchdog.sh
+    user root
+    group root
+    disabled
+
+on property:sys.boot_completed=1
+    start rg52_wifi_fix
+    start rg52_wifi_watchdog

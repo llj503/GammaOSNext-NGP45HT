@@ -43,7 +43,10 @@ device/ngp45ht/
 │   ├── aic_load_fw_usb.ko         493,488 B
 │   ├── aic8800_fdrv_usb.ko        2,898,192 B
 │   ├── wifi_pick.sh.patch         vendor/bin/wifi_pick.sh 两行 insmod 改动
-│   └── firmware-aic8800/          21 个固件文件 → /vendor/etc/firmware/aic8800/
+│   ├── firmware-aic8800/          21 个固件文件 → /vendor/etc/firmware/aic8800/
+│   ├── rg52-wifi-fix.rc           开机部署声明（v4，详见 §8）
+│   ├── rg52-wifi-fix.sh           一次性加固：WiFi 设置 + 输入法 + USB 电源管理（0755）
+│   └── rg52-wifi-watchdog.sh      常驻看门狗：驱动假死自动重载（0755）
 ├── retroarch-zh/                  RetroArch 简体中文预置（详见 §6）
 │   ├── retroarch.cfg              114,828 B（设备端验证配置，含四项字体键 + user_language=12）
 │   ├── zh-CN.ttf                  CarroisGothicSC，40,356 B
@@ -77,10 +80,17 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v1 | Image/DTB/extlinux.conf 替换 + 3 个 keylayout | Fat、system |
 | v2 | + WiFi USB 模块对 + wifi_pick.sh + 固件 + build.prop 横屏 | vendor、system |
 | v3 | + RetroArch 中文字体四件套（vendor 暂存 + 开机部署） | vendor |
+| **v4** | + WiFi 防假死三件套（USB 电源管理 + 看门狗 + 输入法固化） | vendor |
 
-注入方法：免特权 `dd` 抽分区 → `debugfs -w -f` 命令文件注入 → `e2fsck -fn` → `dd` 写回 →
-区域级 `cmp` 比对（除目标分区外零改动，GPT 未动）。v3 三重验证：重抽 dump md5 一致、
-e2fsck 干净（1431 文件）、v2↔v3 非 vendor 区域逐字节相同。
+| 版本 | 交付镜像 | md5 |
+|---|---|---|
+| v3 | `GammaOSCore-NGP45HT-20261015-v3.img` | `03951a3bb01135aa057b306c2e6f281b` |
+| **v4** | `GammaOSCore-NGP45HT-20261015-v4.img` | `512f62df34c1e45d5f79245b447cf489` |
+
+均为 5,451,564,032 B。注入方法：免特权 `dd` 抽分区 → `debugfs -w -f` 命令文件注入 →
+`e2fsck -fn` → `dd` 写回 → 区域级 `cmp` 比对（除目标分区外零改动，GPT 未动）。
+v4 三重验证：重抽 vendor 与注入源 `cmp` 一致、e2fsck 干净（1434 文件 = v3 的 1431 + 3）、
+v3↔v4 非 vendor 区域（含 userdata 全量）md5 相同 `515bc9a0…`。
 
 ## 5. WiFi：AIC8800DC（USB）替换 AIC8800D80（SDIO）
 
@@ -112,5 +122,33 @@ vendor 来自 DOOGEE U10（AIC8800D80，SDIO）。NGP45HT 是 USB 接口，需�
 
 - Rufus DD 模式写入 TF 卡；u-boot 从 SD 优先（eMMC 内原版 loader 16MB 已提取备份）
 - 首启 userdata 自动扩展；EEROMS roms 在 SD FAT32 分区
+- 刷机会清空 `/data`；第三方 app（如影视仓）需刷后自行 `adb install`
 - **未验证**：mamaich u-boot 的 DDR init 与 NGP45H 兼容性（不兼容则用备份 loader 替换镜像前 16MB）、
-  AIC8800DC 的 BT 通路、v3 镜像实机启动（TF 卡当前仍为旧版）
+  AIC8800DC 的 BT 通路
+
+## 8. v4：WiFi 防假死与输入法固化（实机排障闭环）
+
+办公室 WiFi 上暴露两个会复发的问题，线上修过但重启即丢，故固化进 v4。
+
+| # | 故障 | 根因 | 症状 |
+|---|---|---|---|
+| 1 | 驱动假死 | AIC8800DC 驱动在 USB 链路挂起后把自己 latch 成 `usb disconnected` 且**不复位** | 所有扫描返回 `busy`，界面上 WiFi 整个消失（`lsmod` 里模块其实还在） |
+| 2 | 密码框输不进字 | 默认输入法 `com.liskovsoft.leankeyboard` 在 WiFi 密码框崩溃（IME 窗口 `invalid token`，按键事件全被丢弃） | 点连接后"转圈失败"，实际**连接从未发起** |
+
+对策（vendor 分区新增 3 个文件）：
+
+| 文件 | 权限 | 作用 |
+|---|---|---|
+| `etc/init/rg52-wifi-fix.rc` | 0644 | 声明 `rg52_wifi_fix`（oneshot）+ `rg52_wifi_watchdog`（常驻），`on property:sys.boot_completed=1` 拉起 |
+| `bin/rg52-wifi-fix.sh` | 0755 | ① `wifi_sleep_policy=2`、`wifi_scan_always_enabled=1`、`wifi_country_code=CN`；② 默认输入法切到 `com.android.inputmethod.leanback`；③ 找到 USB `a69c:88dc` 设备写 `power/control=on`、`power/wakeup=disabled` |
+| `bin/rg52-wifi-watchdog.sh` | 0755 | 每 5 分钟探测；WiFi 开启却连续两次 `iw dev wlan0 scan` 拿不到 BSS → `svc wifi disable` → 重启 `vendor.wifi_hal_legacy` → `rmmod`/`insmod` 重载 → `svc wifi enable`。**用户主动关 WiFi 时不干预** |
+
+日志：`/data/local/tmp/rg52-wifi-fix.log`、`/data/local/tmp/rg52-wifi-watchdog.log`
+
+### 实机连接记录（供排查参考）
+
+- 办公室 AP `360JDCWiFi-E378`（2.4G ch1，-29dBm，WPA2/WPA3 混合）连上后 IP `192.168.0.176`，
+  ping `223.5.5.5` 零丢包 ~22ms
+- `cmd wifi` 无强制指定安全类型的子命令；UI 注入路径脆弱（TV 设置会传不存在的 `networkId`），
+  可靠做法是改 `/data/misc/apexdata/com.android.wifi/WifiConfigStore.xml`（**改完必须重启**，
+  框架内存态会覆盖运行中替换的文件；`RandomizedMacAddress` 不能填 `null`，否则 NPE 整条网络被跳过）
