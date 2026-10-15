@@ -1,142 +1,173 @@
-# GammaOS Next для карманной консоли AISLPC RG52 Mini
+# GammaOS Next 掌机移植（XiFan NGP45H / RK3562）
 
-Форк [TheGammaSqueeze/GammaOSNextDistribution-14](https://github.com/TheGammaSqueeze/GammaOSNextDistribution-14)
-— дерева исходников GammaOS Next (LineageOS 21 / Android 14), доработанного под
-**AISLPC RG52 Mini** на Rockchip RK3562.
+本仓库是 [TheGammaSqueeze/GammaOSNextDistribution-14](https://github.com/TheGammaSqueeze/GammaOSNextDistribution-14)
+—— GammaOS Next（LineageOS 21 / Android 14）源码树 —— 的分支。上游目标机是
+**AISLPC RG52 Mini**（Rockchip RK3562），本分支已改造成 **XiFan NGP45H**：同一块
+Rockchip RK3562 EVB1 LP4X V10 参考板，但屏幕换成 1024×768 横屏 DSI、手柄是
+`micro-gamepad`、Wi-Fi 是 USB 接口的 AIC8800DC。路径里设备代号记作 **`ngp45ht`**。
 
-## Что здесь делается
+> 完整移植说明（中文）：[doc/ngp45ht/README.md](doc/ngp45ht/README.md)
 
-На устройстве уже работает порт Android 13 (SyachOS), но исходников его
-Android-части нет — автор по лицензии выложил только ядро. Дорабатывать дальше
-нечего, поэтому система собирается заново из исходников.
+## 设备档案
 
-Дерево собирает **только GSI**, то есть раздел `system`. Остальное берётся из
-своих сборок и из проверенного образа:
-
-| Часть образа | Откуда |
-|---|---|
-| `system` | **эта сборка** — GammaOS Core, Android 14 |
-| `vendor` | из рабочего образа SyachOS: Wi-Fi/Bluetooth AIC8800D80, HAL-ы Rockchip. Сам SyachOS его тоже не собирал — раздел взят со стокового планшета DOOGEE U10 на том же RK3562. Вендорский `rgp2pad` из образа убран, геймпадом занимается штатный gammapad |
-| ядро, DTB | [mamaich/kernel_rk3562_rg52mini](https://github.com/mamaich/kernel_rk3562_rg52mini) — Linux 5.10.226 |
-| загрузчик | [mamaich/u-boot-rk3562-rg52mini](https://github.com/mamaich/u-boot-rk3562-rg52mini) |
-
-Такая стыковка возможна потому, что порт Android 13 у этого устройства
-Treble-совместимый (`ro.treble.enabled=true`, `ro.vndk.version=33`), а в дереве
-есть снимок VNDK v33 для vendor-библиотек от Android 13.
-
-## Почему именно GammaOS Next
-
-У RG52 Mini **нет сенсорного экрана** — только геймпад, D-pad и несколько
-кнопок. GammaOS Core (вариант на базе Android TV) рассчитан ровно на это:
-интерфейс полностью проходится с геймпада, в образ уже вшиты RetroArch, PPSSPP,
-Flycast, DraStic, mupen64plus, Daijishō, и вырезана телефония, которой на
-устройстве без модема взяться неоткуда.
-
-## Скачать
-
-Готовый образ SD-карты — на странице
-[выпусков](https://github.com/mamaich/GammaOSNext-RG52mini/releases). Собирать
-ничего не нужно: записал на карту, вставил, включил. При первой загрузке раздел
-`userdata` сам растягивается на всю карту.
-
-Нужны на одной карте и GammaOS, и dArkOS — есть готовая общая карта с меню
-выбора системы при включении: [RG52mini-dualboot](https://github.com/mamaich/RG52mini-dualboot/releases/tag/v1.0). GammaOS на ней та
-же, что в выпусках здесь, и обновляется по воздуху тем же пакетом.
-
-| Выпуск | Дата | Коротко |
+| 项目 | XiFan NGP45H（`ngp45ht`） | RG52 Mini（上游基线） |
 |---|---|---|
-| [v1.9](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.9) — [подробности](doc/rg52mini/release-v1.9.md) | 08.10.2026 | Загрузчик с меню выбора системы для общей карты dArkOS + GammaOS; на обычной карте всё как раньше |
-| [v1.8](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.8) — [подробности](doc/rg52mini/release-v1.8.md) | 06.10.2026 | Исправления: снова работает KernelSU, загрузка на ~5 с быстрее, разгон памяти ставится на ревизии A |
-| [v1.7](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.7) — [подробности](doc/rg52mini/release-v1.7.md) | 06.10.2026 | Исправления: перезагрузка плат ревизии A по кнопке питания; яркость, Developer options и отладка по Wi-Fi в системных настройках; частоты графики в Power Saver и при загрузке |
-| [v1.6](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.6) — [подробности](doc/rg52mini/release-v1.6.md) | 04.10.2026 | Режим Overclock (2208/1000 МГц) и настоящая частота в меню питания; сон и пробуждение с HDMI; исправлен чёрный экран на платах ревизии A; изменения апстрима GammaOS до 1.4.4, Bluetooth выключен на чистой установке |
-| [v1.5](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.5) — [подробности](doc/rg52mini/release-v1.5.md) | 02.10.2026 | Звук по HDMI, выбор режима HDMI и зеркалирование сразу; подсветка стиков; на 24 МиБ больше памяти и загрузка быстрее; разгон памяти одним скриптом; zRAM в процентах; игры из папок EmuELEC в библиотеке |
-| [v1.4](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.4) — [подробности](doc/rg52mini/release-v1.4.md) | 28.09.2026 | Первое обновление по воздуху — с v1.3 карту вынимать не нужно; перезагрузка в систему на внутренней памяти; Bluetooth больше не роняет ядро при выключении; выбранный режим производительности переживает перезагрузку |
-| [v1.3](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.3) — [подробности](doc/rg52mini/release-v1.3.md) | 27.09.2026 | Ход записи виден на экране при обновлении; режим подкачки переключается из меню выключателя и наконец настраивается по-настоящему; старые игры ставятся обычным установщиком; убраны падения ядра при перезапуске каркаса |
-| [v1.2](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.2) — [подробности](doc/rg52mini/release-v1.2.md) | 24.09.2026 | Свежий драйвер Mali и свойства ARM от Android 14 — заработали Minecraft и Shantae; Wi-Fi на платах ревизии A и сеть сразу после загрузки, а не через пять минут; частота памяти в меню выключателя и в режимах производительности; постоянная разметка карты; свой загрузчик в образе |
-| [v1.1](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.1) — [подробности](doc/rg52mini/release-v1.1.md) | 24.09.2026 | Уплотняющий сборщик мусора ART, zram на lz4, заработавшие режимы производительности и новый «3D Games», частоты и температура в меню выключателя, показ телефонных приложений в магазинах |
-| [v1.0](https://github.com/mamaich/GammaOSNext-RG52mini/releases/tag/v1.0) — [подробности](doc/rg52mini/release-v1.0.md) | 23.09.2026 | Первый публичный. Поддержка железа консоли, microG со входом в Google-аккаунт, переработанный режим мыши, починенные WebView и оболочка nano |
+| SoC | RK3562：4×A55、Mali-G52、NPU，2GB RAM | 相同 |
+| 底板 | Rockchip RK3562 EVB1 LP4X V10，厂商在其上做掌机化 DTS | 相同 |
+| 屏幕 | **DSI 1024×768@60**，4 lane RGB888，`simple-panel-dsi`，init-sequence 写在 DTB 内 | 640×480 竖屏 |
+| 输入 | **`micro-gamepad`**（双摇杆 ADC + 4 个 ADC 键 + 17 个 GPIO 键 + 震动马达）+ `adc-keys`（音量±/静音/返回）+ `rk805-pwrkey`，**没有触摸屏** | 另一套手柄 |
+| 音频/电源 | `rk817` codec/battery/charger，背光 PWM 256 级，HDMI，u-boot 充电动画 | 相同 |
+| Wi-Fi | **AIC8800DC，USB 接口**（`usb 3-1`）。DT 里 `wifi_chip_type="ap6275s"` 是 EVB 遗留，不生效 | AIC8800D80（SDIO） |
+| USB | DWC3，基础 DTB 里 `dr_mode="otg"` | host |
 
-## С чего начать
+## NGP45HT 做了什么
+
+设备相关的一切都在 `device/ngp45ht/`：
+
+| 部分 | 内容 / 来源 |
+|---|---|
+| 内核、DTB | [mamaich/kernel_rk3562_rg52mini](https://github.com/mamaich/kernel_rk3562_rg52mini)（Linux 5.10.226）+ `device/ngp45ht/kernel-patches/`：新增 `rk3562-ngp45ht.dts`、`Makefile` 加一行、`rk3562-darkos.dtsi` 补两个 label、`rk3562-joystick.c` 适配手柄 |
+| 按键布局 | `keylayout/` → `/system/usr/keylayout/`：`adc-keys.kl`、`retrogame_joypad.kl`、`rk3562-joystick.kl` |
+| 横屏修正 | `system/build.prop.patch`：`ORIENTATION_90` → `0`，`fixed_rotation` `1` → `0` |
+| Wi-Fi | `wifi/`：USB 模块对 `aic_load_fw_usb.ko` + `aic8800_fdrv_usb.ko`、21 个固件、对 `vendor/bin/wifi_pick.sh` 的两行 insmod 改动 |
+| RetroArch 简体中文 | `retroarch-zh/`：`retroarch.cfg`、CarroisGothicSC 字体 `zh-CN.ttf`、`rg52-retroarch.rc` 与开机幂等部署脚本 |
+| 工具脚本 | `scripts/`：`build_kernel.sh`（内核 + DTB 一键构建）、`patch_system.sh`（免 root / 免 loop 的 ext4 离线注入） |
+
+`system.img` 的构建方式与上游完全相同，走同一个目标：
+
+```bash
+bash buildtv.sh nosync      # GammaOS Core（Android TV 版），适用于 5.7 以上内核
+```
+
+最终的可烧录 SD 卡镜像是在上游镜像基础上替换 Fat / vendor / system 三个分区得到的，
+做法、版本演进（v1 → v3）与校验记录见 [doc/ngp45ht/README.md](doc/ngp45ht/README.md)。
+
+## 移植状态
+
+| 项目 | 状态 |
+|---|---|
+| 屏幕 / 手柄 DTB | 已就绪，随内核树一起构建 |
+| 内核与模块 | `Image` 与 `rk3562-ngp45ht.dtb` 已构建 |
+| SD 卡镜像 | 已组装并校验，5.45 GB |
+| 启动、显示、输入、音频、RetroArch | 实机已验证 |
+| Wi-Fi（AIC8800DC / USB） | 可用：能连接网络并访问外网 |
+| RetroArch 简体中文 | 首次开机自动部署 |
+| AIC8800DC 蓝牙通路 | 未验证 |
+| 引导器 DDR init 与本板的兼容性 | 未验证（已备份原厂 loader 作兜底） |
+
+---
+
+# 上游基线说明（RG52 Mini）
+
+以下内容说明这棵源码树本身从上游继承的部分。NGP45HT 用的就是这棵树，
+只是换掉了设备相关的附件，所以这部分依然适用。
+
+## 这棵树解决什么问题
+
+设备原本跑的是厂商的 Android 13（SyachOS），但作者只按许可证公开了内核源码，
+Android 部分没有源码、无从继续改进，因此系统是从源码重新构建的。
+
+这棵树只构建 **GSI**，也就是 `system` 分区；其余部分取自既有构建和可运行的镜像：
+
+| 镜像分区 | 来源 |
+|---|---|
+| `system` | **本仓库构建** —— GammaOS Core，Android 14 |
+| `vendor` | 取自可运行的 SyachOS 镜像：Wi-Fi/蓝牙 AIC8800D80、Rockchip HAL。SyachOS 自己也没构建它，该分区来自同 SoC 的 DOOGEE U10 平板。镜像里厂商的 `rgp2pad` 已移除，手柄交给系统自带的 gammapad |
+| 内核、DTB | [mamaich/kernel_rk3562_rg52mini](https://github.com/mamaich/kernel_rk3562_rg52mini) —— Linux 5.10.226 |
+| 引导器 | [mamaich/u-boot-rk3562-rg52mini](https://github.com/mamaich/u-boot-rk3562-rg52mini) |
+
+之所以能这样拼接，是因为这台设备上的 Android 13 满足 Treble
+（`ro.treble.enabled=true`、`ro.vndk.version=33`），而树里带了供 Android 13
+vendor 库使用的 VNDK v33 快照。
+
+## 为什么选 GammaOS Next
+
+这类掌机**没有触摸屏**，只有手柄、方向键和几个按键。基于 Android TV 的
+GammaOS Core 正是为此设计：界面完全可以用手柄走通，镜像里已内置 RetroArch、
+PPSSPP、Flycast、DraStic、mupen64plus、Daijishō，并去掉了没有 modem 的设备上
+用不到的电话功能。
+
+## 下载
+
+成品 SD 卡镜像在上游的 [Releases](https://github.com/mamaich/GammaOSNext-RG52mini/releases)
+页面。无需自行构建：写卡、插入、开机即可。首次启动时 `userdata` 会自动扩展到整张卡。
+
+想在同一张卡上同时放 GammaOS 和 dArkOS，可以用带开机选系统菜单的成品双系统卡：
+[RG52mini-dualboot](https://github.com/mamaich/RG52mini-dualboot/releases/tag/v1.0)。
+里面的 GammaOS 与这里的发布版一致，同样支持 OTA 升级。
+
+NGP45HT 的成品镜像与发布说明在 [doc/ngp45ht/README.md](doc/ngp45ht/README.md)。
+
+## 目录指南
 
 | | |
 |---|---|
-| **Что за устройство, что за исходники и как это стыкуется** | [doc/rg52mini/01-разбор.md](doc/rg52mini/01-разбор.md) |
-| **План работ, принятые решения и открытые вопросы** | [doc/rg52mini/02-план.md](doc/rg52mini/02-план.md) |
-| **Собрать самому** | [doc/rg52mini/03-сборка.md](doc/rg52mini/03-сборка.md) |
-| **Поднять частоту памяти до 928 МГц** — необязательная правка на свой страх | [doc/rg52mini/04-частота-памяти.md](doc/rg52mini/04-частота-памяти.md) |
-| **HDMI**: режимы, зеркалирование, «док-станция», диагностика | [doc/rg52mini/05-hdmi.md](doc/rg52mini/05-hdmi.md) |
-| **Сосуществование EmuELEC/RGBox с GammaOS Next**: переключение между системами, общая папка ромов | [doc/rg52mini/06-emuelec-на-emmc.md](doc/rg52mini/06-emuelec-на-emmc.md) |
-| **Наши настройки**: меню выключателя, GammaOS Toolbox, настройки Android TV | [doc/rg52mini/07-настройки.md](doc/rg52mini/07-настройки.md) |
-| **Производительность и память**: что сделано, что подкрутить самому, что проверено и отброшено | [doc/rg52mini/08-производительность.md](doc/rg52mini/08-производительность.md) |
+| 设备拆解、vendor 与启动链、各部分如何拼接 | `doc/rg52mini/01-разбор.md` |
+| 工作计划、技术决策与遗留问题 | `doc/rg52mini/02-план.md` |
+| 自行构建 | `doc/rg52mini/03-сборка.md` |
+| 内存超频到 928 MHz（可选，风险自负） | `doc/rg52mini/04-частота-памяти.md` |
+| HDMI：模式、镜像、「底座」模式、排查 | `doc/rg52mini/05-hdmi.md` |
+| EmuELEC / RGBox 与 GammaOS Next 共存：双系统切换、共享 rom 目录 | `doc/rg52mini/06-emuelec-на-emmc.md` |
+| 系统设置：电源菜单、GammaOS Toolbox、Android TV 设置 | `doc/rg52mini/07-настройки.md` |
+| 性能与内存：已做的、可自行调整的、已验证或已否决的 | `doc/rg52mini/08-производительность.md` |
 
-## Состояние
+> 注：`doc/rg52mini/` 下的文档沿用上游原文（俄文），本分支未改写。
 
-Система собрана и работает на устройстве. Образ карты собирается одной
-командой и проверяется смонтированным перед выдачей.
+## 构建状态
 
-| Этап | Состояние |
+系统已构建并在设备上运行。SD 卡镜像由一条命令组装，交付前会挂载核验。
+
+| 阶段 | 状态 |
 |---|---|
-| Разбор устройства, vendor и загрузки | готово |
-| Проверка совместимости Treble | готово |
-| Дерево исходников развёрнуто | готово |
-| Отдельный продукт сборки | **не нужен** — стандартная цель даёт нужную разметку |
-| Устройство-зависимые добавки (`device/rg52mini/`) | готово, подключено к цели |
-| Сборка `system.img` | прошла: 3 ч 24 мин первая, 8 мин повторная |
-| Снимок VNDK 33 для vendor от Android 13 | в образе есть, `/system_ext/apex/com.android.vndk.v33.apex` |
-| Образ SD-карты | собран и проверен, 5,45 ГБ — размер постоянный: с v1.2 разметка фиксированная, от содержимого не зависит |
-| **Система на устройстве** | **работает** |
+| 设备、vendor、启动链拆解 | 完成 |
+| Treble 兼容性核验 | 完成 |
+| 源码树展开 | 完成 |
+| 独立构建目标 | **不需要** —— 标准目标即可产出所需分区布局 |
+| 设备相关附件（`device/rg52mini/`、`device/ngp45ht/`） | 完成，已接入构建目标 |
+| `system.img` 构建 | 通过：首次 3 小时 24 分，增量 8 分钟 |
+| 供 Android 13 vendor 使用的 VNDK 33 快照 | 镜像内已含 `/system_ext/apex/com.android.vndk.v33.apex` |
+| SD 卡镜像 | 已组装并核验，5.45 GB —— 体积固定：自 v1.2 起分区布局固定，与内容无关 |
+| **系统上机** | **可运行** |
 
-Проверено на живом устройстве:
+实机已验证项：
 
 | | |
 |---|---|
-| Загрузка | до конца, `BOOT_COMPLETED`, лаунчер GammaOS, мастер настройки |
-| Графика | `surfaceflinger` с первого раза, экран 1280×720, плотность 213, `ORIENTATION_90` |
-| Wi-Fi | AIC8800 поднялся, подключение к сети работает |
-| Звук | есть, в том числе в эмуляторе |
-| Ввод | аналоговые стики, D-pad, кнопки, Select/Start, громкость, HOME и BACK корпуса, меню по длинному нажатию выключателя |
-| Триггеры | LT и RT были перепутаны железом, переставлены через `remap_axis` |
-| Режим мыши | проверено: включение и выключение обоими стиками, щелчки L3 и R3, лишних нажатий в приложение не уходит. Экран коротко моргает при переключении, остальные кнопки работают как обычно |
-| Настройки геймпада | в интерфейсе оставлен один переключатель режима мыши: остальное задано под это железо и правка вслепую ломала управление |
-| Bluetooth | проверены геймпад и наушники; A2DP по умолчанию SBC вместо AAC — меньше задержка |
-| Вход в Google-аккаунт | microG: проверена авторизация в Aurora Store через аккаунт Google |
-| Браузер и WebView | страницы рисуются |
-| Оболочка GammaOS Nano | поворот экрана, Wi-Fi, запуск приложений, экранная клавиатура в браузере |
-| Отладочный порт | COM4, 1500000 8n1: журнал при загрузке, интерактивная оболочка после неё |
-| USB host | мышь подключается и работает |
-| adb | работает |
-| Root | KernelSU-Next в ядре, менеджер `v3.3.0` принят ядром |
-| Расширение `userdata` | две загрузки, 960 МБ → 53 ГБ, без вмешательства |
-| Эмуляторы | запускаются |
-| Обновление по воздуху | штатное приложение обновлений само находит сборку, скачивает и ставит её; ход записи виден на экране |
-| Установка старых игр | DuckTales Remastered (`targetSdk` 22) ставится обычным установщиком, без `adb` |
+| 启动 | 完整走到 `BOOT_COMPLETED`，GammaOS 启动器与设置向导 |
+| 图形 | `surfaceflinger` 一次成功，1280×720，密度 213，`ORIENTATION_90` |
+| Wi-Fi | AIC8800 正常起来，可连网 |
+| 音频 | 正常，模拟器内也有声 |
+| 输入 | 摇杆、方向键、按键、Select/Start、音量、机身 HOME/BACK、长按电源菜单 |
+| 扳机键 | LT/RT 硬件上接反，通过 `remap_axis` 对调 |
+| 鼠标模式 | 已验证：两个摇杆都能开关、L3/R3 点击、无多余事件透传给应用。切换时屏幕会短暂闪烁，其余按键正常 |
+| 手柄设置 | 界面只保留鼠标模式开关：其余按硬件固定，盲改会破坏操作 |
+| 蓝牙 | 手柄与耳机均验证；A2DP 默认 SBC 而非 AAC，延迟更低 |
+| Google 账号登录 | microG：已通过 Google 账号在 Aurora Store 完成授权 |
+| 浏览器与 WebView | 页面可正常渲染 |
+| GammaOS Nano 桌面 | 屏幕旋转、Wi-Fi、启动应用、浏览器内软键盘 |
+| 调试串口 | COM4，1500000 8n1：启动日志，启动后进入交互 shell |
+| USB host | 鼠标可接入使用 |
+| adb | 可用 |
+| Root | 内核内 KernelSU-Next，管理器 `v3.3.0` 已被内核接受 |
+| `userdata` 扩展 | 两次启动，960 MB → 53 GB，无需干预 |
+| 模拟器 | 可启动 |
+| OTA 升级 | 系统更新应用自行发现、下载并安装，写入进度在屏幕上可见 |
+| 旧版游戏安装 | DuckTales Remastered（`targetSdk` 22）可用系统安装器直接安装，不需要 `adb` |
 
-## Сборка апстрима
+## 上游构建方式
 
-Всё, что относится к самому GammaOS Next, не тронуто и работает как у автора:
+GammaOS Next 本身未做改动，按作者的方式使用：
 
-    bash buildtv.sh nosync      # GammaOS Core (Android TV), ядра новее 5.7
-    bash buildtv_cc.sh nosync   # то же, но boot-образ ART под ядра без userfaultfd
-    bash build.sh nosync        # GammaOS Next Lite (обычный интерфейс)
+```bash
+bash buildtv.sh nosync      # GammaOS Core（Android TV），5.7 以上内核
+bash buildtv_cc.sh nosync   # 同上，但为无 userfaultfd 的内核准备 ART boot 镜像
+bash build.sh nosync        # GammaOS Next Lite（普通界面）
+```
 
-Для RG52 Mini берётся **`buildtv.sh`**. Раньше брался `buildtv_cc.sh`: в ядре
-устройства был выключен `CONFIG_USERFAULTFD`, ART работал копирующим сборщиком
-мусора, и загрузочный образ должен был быть собран под него же. Теперь опция в
-ядре включена, ART перешёл на уплотняющий сборщик — и загрузочный образ нужен
-соответствующий. Пара обязана совпадать: иначе проверка `OatHeader` не
-сходится и zygote пересобирает `boot classpath` через dex2oat при каждой
-холодной загрузке.
+RG52 Mini 与 NGP45HT 都用 **`buildtv.sh`**。早前用 `buildtv_cc.sh`：当时设备内核关闭了
+`CONFIG_USERFAULTFD`，ART 走复制式 GC，boot 镜像必须与之匹配；现在内核已开启该选项，
+ART 改为整理式 GC，boot 镜像也要相应更换。两者必须成对：否则 `OatHeader` 校验不通过，
+zygote 每次冷启动都要用 dex2oat 重新构建 `boot classpath`。
 
-Подробнее про всю сборку, включая образ SD-карты и то, откуда в нём берутся
-ядро и модули Wi-Fi, — в [doc/rg52mini/03-сборка.md](doc/rg52mini/03-сборка.md).
-Разбор решений и находок — в [doc/rg52mini/02-план.md](doc/rg52mini/02-план.md).
-
-## Порт на Xifan NGP45H (RK3562)
-
-Тот же подход, что и для RG52 Mini, но для кнопочного портативного компьютера
-Xifan NGP45H: RK3562, ландшафтный экран DSI 1024×768, геймпад micro-gamepad,
-Wi-Fi AIC8800DC по USB. Ядро и DTB собираются из
-[mamaich/kernel_rk3562_rg52mini](https://github.com/mamaich/kernel_rk3562_rg52mini)
-с патчами из `device/ngp45ht/kernel-patches/`; изменения vendor (USB-модули
-Wi-Fi, RetroArch с китайским шрифтом) — в `device/ngp45ht/`. Полное описание
-переноса (на китайском): [doc/ngp45ht/README.md](doc/ngp45ht/README.md).
+完整构建流程（含 SD 卡镜像、内核与 Wi-Fi 模块的来源）见
+`doc/rg52mini/03-сборка.md`，决策与踩坑记录见 `doc/rg52mini/02-план.md`。
