@@ -152,3 +152,82 @@ vendor 来自 DOOGEE U10（AIC8800D80，SDIO）。NGP45HT 是 USB 接口，需�
 - `cmd wifi` 无强制指定安全类型的子命令；UI 注入路径脆弱（TV 设置会传不存在的 `networkId`），
   可靠做法是改 `/data/misc/apexdata/com.android.wifi/WifiConfigStore.xml`（**改完必须重启**，
   框架内存态会覆盖运行中替换的文件；`RandomizedMacAddress` 不能填 `null`，否则 NPE 整条网络被跳过）
+
+## 9. v5：关机掉电 BUG 修复（内核补丁 0004）
+
+**现象**：晚上关机，第二天早上一点电都没有、必须插充电器才能开机。
+
+**根因**：pstore / ramoops 取证到关机流程中的内核崩溃 ——
+
+```
+sys.powerctl=shutdown → __do_sys_reboot → kernel_restart → kernel_restart_prepare
+  → device_shutdown(reboot.c:79) → mmc_bus_shutdown → mmc_sd_shutdown
+```
+
+第二个 TF 卡槽（`ff890000` / sdmmc1，插着 50GB ROMs 卡，DTB 为 `broken-cd` 轮询）在关机瞬间
+被轮询判定为「卡已移除」（`host->card = NULL`）；`_mmc_sd_shutdown()` 里的
+`WARN_ON(!host->card)` 发现了却只返回 0，外层照样解引用 `host->card->dev`（NULL+0xec）
+→ **Kernel panic → 关机失败、设备不断电** → 电池整夜放光。
+（主机编号：mmc0=eMMC，mmc1=启动 TF 卡 `ff880000`，mmc2=第二卡槽，panic 只在 mmc2。）
+另一次关机是干净的，说明这是**竞态**而非必现。
+
+**修复**：`drivers/mmc/core/sd.c` 的 `mmc_sd_shutdown` / `mmc_sd_suspend` 两处加 NULL 保护
+（补丁 `device/ngp45ht/kernel-patches/0004-mmc-sd-shutdown-null-card-fix.patch`），
+内核版本号不变，WiFi/BT 模块 vermagic 仍兼容。
+
+```c
+-	if (!err) {
++	if (!err && host->card) {
+ 		pm_runtime_disable(&host->card->dev);
+ 		pm_runtime_set_suspended(&host->card->dev);
+ 	}
+```
+
+**实测**：`setprop sys.powerctl shutdown`（电源菜单同一条路径）→ 设备真正断电
+（adb / ping 均无响应）；开机后 `/sys/fs/pstore/` 为空 —— 真断电后 DDR 掉电，ramoops 被清空；
+此前 panic 时记录能存活，恰恰是设备没断过电的证据。
+
+rk817 的断电链路在 `rk8xx_syscore_shutdown()`（rk808.c），**只有命令是 POWER_OFF 时才写
+DEV_OFF 真断电**，RESTART 只重启不断电。
+
+## 10. v6：底座换到上游 v1.10（2026-10-16）
+
+上游 `mamaich/GammaOSNext-RG52mini` 在 2026-10-14 发布了 **v1.10**
+（`GammaOSCore-RG52Mini-20261014-2235.img.zip`，与 v1.9 **同内核 5.10.226、同 u-boot `rg52mini-1.4`、
+同 Android 13 vendor**），另有 v1.11 在 develop 上起草（未打包）。v6 即把底座换成 v1.10。
+
+**分区布局与 v1.9 逐字节一致**（uboot / resource / dArkOS_Fat / system / vendor / cache /
+metadata / misc / userdata 九个分区的偏移与大小全部相同），因此只需重放改动，DTB 与内核不受影响。
+
+改动重放（`~/rainject/build-v6.sh`，幂等：每次从原始 v1.10 重新合成）：
+
+| 分区 | 文件 | 改动 |
+|---|---|---|
+| dArkOS_Fat | `Image` | 自编内核（含 0004 关机修复），md5 `a23c0e74…` |
+| dArkOS_Fat | `rk3562-ngp45ht.dtb` | 新增，md5 `3c5f6fe2…` |
+| dArkOS_Fat | `extlinux/extlinux.conf` | 基于 v1.10 官方版：`FDT /rk3562-ngp45ht.dtb` + 去 `fbcon=rotate:1` |
+| system | `system/build.prop` | `ORIENTATION_90→0`、`fixed_rotation 1→0` |
+| system | `system/usr/keylayout/` | 3 个 .kl（`adc-keys`、`rk3562-joystick`、`retrogame_joypad`） |
+| vendor | `lib/modules/` | 删 SDIO `aic8800_bsp.ko`+`aic8800_fdrv.ko`，装 USB `aic_load_fw_usb.ko`+`aic8800_fdrv_usb.ko` |
+| vendor | `etc/firmware/aic8800/` | 删 15 个 D80 固件，装 21 个 DC 固件 |
+| vendor | `bin/wifi_pick.sh` | 尾部 insmod 换成 USB 模块（`aic_fw_path` 参数属于 **load_fw** 模块，给 fdrv 无效） |
+| vendor | `bin/` `etc/init/` `etc/retroarch-zh/` | WiFi 防假死三件套 + RetroArch 中文字体与部署脚本 |
+| vendor | `build.prop` | `ro.minui.default_rotation=ROTATION_RIGHT→ROTATION_0` |
+
+**v6 三重验证**：① 成品镜像回抽三个分区，system / vendor 与注入后的分区逐字节 `cmp` 一致；
+② `e2fsck -fn` 两个 ext4 均干净（system 8353/8448 文件，vendor 1434/1568 文件 62100/64148 块），
+FAT 侧 `mtools mdir` + 80,994 簇零重叠；
+③ `assert-v6.py` 25 项逐项断言（内核 md5、DTB、extlinux 两项、build.prop 两项、
+3 个 keylayout 及其 SELinux 标签、WiFi 模块与固件、脚本 0755、rc 与字体）全部通过。
+
+### 踩坑记录
+
+- **debugfs 的 `write` 不会覆盖已存在的文件**：报 `Ext2 file already exists` 后**直接跳过不报错退出**，
+  必须 `rm <目标>` 再 `write`。漏掉这一步时，build.prop / wifi_pick.sh 的改动会静默丢失。
+- 新建的 inode 没有 SELinux 标签，用 `ea_set <路径> security.selinux u:object_r:system_file:s0`
+  补上；**值必须以 NUL 结尾**（与镜像里原始值一致），用 `printf '...\000\n'` 生成命令文件即可。
+- `debugfs -R "ls -l <文件路径>"` 对**单文件**无效（`Ext2 inode is not a directory`），
+  断言里要列目录再匹配。
+- vendor 分区默认无 SELinux 标签（与 system 不同），不必补。
+- 非特权环境下第三方校验：FAT 用 **mtools**（`mdir` / `mcopy`），ext4 用 **debugfs** + `e2fsck -fn`；
+  本机没有 7z。
