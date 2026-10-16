@@ -1,0 +1,30 @@
+diff --git a/drivers/mmc/core/sd.c b/drivers/mmc/core/sd.c
+index e7f2eebd8..7416d52ca 100644
+--- a/drivers/mmc/core/sd.c
++++ b/drivers/mmc/core/sd.c
+@@ -1267,7 +1267,14 @@ static int mmc_sd_shutdown(struct mmc_host *host)
+ 	int err;
+ 
+ 	err = _mmc_sd_shutdown(host);
+-	if (!err) {
++	/*
++	 * NGP45HT fix: the card may already have been removed (e.g. by a
++	 * card-detect poll racing with device_shutdown), in which case
++	 * _mmc_sd_shutdown() warned and returned 0 with host->card == NULL.
++	 * Dereferencing host->card->dev here would panic the kernel during
++	 * shutdown/reboot and prevent the device from ever powering off.
++	 */
++	if (!err && host->card) {
+ 		pm_runtime_disable(&host->card->dev);
+ 		pm_runtime_set_suspended(&host->card->dev);
+ 	}
+@@ -1283,7 +1290,8 @@ static int mmc_sd_suspend(struct mmc_host *host)
+ 	int err;
+ 
+ 	err = _mmc_sd_suspend(host);
+-	if (!err) {
++	/* Same NULL-card race as mmc_sd_shutdown(); see comment there. */
++	if (!err && host->card) {
+ 		pm_runtime_disable(&host->card->dev);
+ 		pm_runtime_set_suspended(&host->card->dev);
+ 	}
