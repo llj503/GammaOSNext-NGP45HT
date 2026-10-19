@@ -1,0 +1,38 @@
+#!/system/bin/sh
+# 性能悬浮窗控制
+#   ngp-overlay            开启（默认左上角）
+#   ngp-overlay off        关闭
+#   ngp-overlay pos 20 14  指定位置后重启悬浮窗
+#   ngp-overlay drag 0     关闭拖动（窗口不再拦截指针事件）
+CFG=/data/local/tmp/ngp-overlay.cfg
+
+case "$1" in
+    off)
+        am force-stop com.ngp.overlay
+        echo "overlay: off"
+        ;;
+    pos)
+        [ -z "$2" ] && { echo "用法: ngp-overlay pos <x> <y>"; exit 1; }
+        printf 'x=%s\ny=%s\n' "$2" "${3:-14}" > $CFG
+        chmod 644 $CFG
+        rm -f /data/data/com.ngp.overlay/files/pos.cfg   # app 自己记的位置优先级更高，先清掉
+        am force-stop com.ngp.overlay
+        am start -n com.ngp.overlay/.StartActivity >/dev/null 2>&1
+        echo "overlay: pos $2 ${3:-14}"
+        ;;
+    drag)
+        # 只改配置文件；已运行的服务需重启才生效
+        printf 'drag=%s\n' "$2" > $CFG
+        chmod 644 $CFG
+        rm -f /data/data/com.ngp.overlay/files/pos.cfg
+        am force-stop com.ngp.overlay
+        am start -n com.ngp.overlay/.StartActivity >/dev/null 2>&1
+        echo "overlay: drag=$2"
+        ;;
+    *)
+        pidof ngp-statd >/dev/null 2>&1 || setsid /vendor/bin/ngp-statd </dev/null >/dev/null 2>&1 &
+        appops set com.ngp.overlay SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1
+        am start -n com.ngp.overlay/.StartActivity >/dev/null 2>&1
+        echo "overlay: on"
+        ;;
+esac

@@ -25,6 +25,18 @@ pm enable com.android.inputmethod.leanback >/dev/null 2>&1
 # ② 改掉 rg52-ime.sh 的强制目标
 setprop persist.rg52.ime $IME_ID
 
+# ②b 性能悬浮窗：先起 root 统计守护进程，再拉起覆盖层应用
+#     帧率来自 SurfaceFlinger TimeStats，需要 root；app 进程 CapBnd 为空，
+#     调 su 提权必然 EPERM（Android 设计），所以改成"守护进程写文件、app 读文件"。
+if [ -x /vendor/bin/ngp-statd ]; then
+    pidof ngp-statd >/dev/null 2>&1 || setsid /vendor/bin/ngp-statd >/dev/null 2>&1 &
+fi
+if pm path com.ngp.overlay >/dev/null 2>&1; then
+    appops set com.ngp.overlay SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1
+    am start -n com.ngp.overlay/.StartActivity >/dev/null 2>&1
+    log -t $TAG "overlay started"
+fi
+
 # ③ rg52-ime.sh 在 boot_completed 后循环 30 次 × 2 秒，等它结束再收尾
 sleep 70
 ime enable $IME_ID >/dev/null 2>&1
