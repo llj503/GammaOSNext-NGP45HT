@@ -1,0 +1,3 @@
+# 在 gammapad 启动之前替换成「只换 A/B」的版本
+on post-fs-data
+    exec - root root -- /vendor/bin/ngp-gammapad-bind.sh
