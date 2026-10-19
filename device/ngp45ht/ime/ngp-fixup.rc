@@ -1,0 +1,13 @@
+# NGP45HT: 修复软键盘不可用（镜像默认禁用了两个输入法包，
+# 且 rg52-ime.sh 强制指向其中启不来的那个）。详见 ngp-fixup.sh。
+
+service ngp_fixup /system/bin/sh /vendor/bin/ngp-fixup.sh
+    class late_start
+    user root
+    group root shell
+    oneshot
+    disabled
+    seclabel u:r:shell:s0
+
+on property:sys.boot_completed=1
+    start ngp_fixup
