@@ -22,7 +22,7 @@ echo "[1/6] aapt2 link"
     --manifest "$PROJ/AndroidManifest.xml" \
     --min-sdk-version 29 \
     --target-sdk-version 33 \
-    --version-code 1 --version-name 1.0
+    --version-code 7 --version-name 1.6
 
 echo "[2/6] javac"
 find "$PROJ/src" -name '*.java' > "$OUT/sources.txt"

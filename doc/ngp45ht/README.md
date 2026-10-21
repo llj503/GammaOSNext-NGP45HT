@@ -80,17 +80,58 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v1 | Image/DTB/extlinux.conf 替换 + 3 个 keylayout | Fat、system |
 | v2 | + WiFi USB 模块对 + wifi_pick.sh + 固件 + build.prop 横屏 | vendor、system |
 | v3 | + RetroArch 中文字体四件套（vendor 暂存 + 开机部署） | vendor |
-| **v4** | + WiFi 防假死三件套（USB 电源管理 + 看门狗 + 输入法固化） | vendor |
+| v4 | + WiFi 防假死三件套（USB 电源管理 + 看门狗 + 输入法固化） | vendor |
+| v5 | + 关机 panic 修复（`mmc_sd_shutdown` 空指针） | Fat |
+| v6 | 底座换上游 v1.10，全量重做 | 全部 |
+| v7 | + 方向键修补 + 软键盘启用 | system、vendor |
+| v8 | + nano 画面翻转修正 + su + 联网验证国内化 | vendor |
+| v9 | + 性能悬浮窗（statd + APK） | vendor |
+| v10 | + ABXY swap 只换 A/B（gammapad 表补丁） | vendor |
+| v11 | + 悬浮窗电池功率、帧率修复 | vendor |
+| v12 | + 悬浮窗 CPU 占用率、内存占比 | vendor |
+| v13 | + 悬浮窗前台服务、桌面开关图标 | vendor |
+| v14 | + nano 方向 `rev_landscape` | vendor |
+| **v15** | **+ 方向键四向 HAT 化（内核）、鼠标落点分辨率同步** | **Fat、system、vendor** |
 
 | 版本 | 交付镜像 | md5 |
 |---|---|---|
 | v3 | `GammaOSCore-NGP45HT-20261015-v3.img` | `03951a3bb01135aa057b306c2e6f281b` |
-| **v4** | `GammaOSCore-NGP45HT-20261015-v4.img` | `512f62df34c1e45d5f79245b447cf489` |
+| v4 | `GammaOSCore-NGP45HT-20261015-v4.img` | `512f62df34c1e45d5f79245b447cf489` |
+| **v15** | `GammaOSCore-NGP45HT-20261021-v15.img` | `00bc41eaccab1fb241687e610a4dbcbd` |
 
 均为 5,451,564,032 B。注入方法：免特权 `dd` 抽分区 → `debugfs -w -f` 命令文件注入 →
 `e2fsck -fn` → `dd` 写回 → 区域级 `cmp` 比对（除目标分区外零改动，GPT 未动）。
 v4 三重验证：重抽 vendor 与注入源 `cmp` 一致、e2fsck 干净（1434 文件 = v3 的 1431 + 3）、
 v3↔v4 非 vendor 区域（含 userdata 全量）md5 相同 `515bc9a0…`。
+v15 三重验证：三个分区回读 md5 与源镜像全一致、FAT 内 Image/DTB/conf 回读命中、
+`fsck.fat` 与 `e2fsck -fn` 全通过、真机 `/proc/version` 命中新内核。
+
+### v15 的两处修复
+
+**方向键下/左/右无响应**（nano 模式尤其明显，只有上键能用）
+
+`rk3562_gpio_work_func()` 原来只把 `BTN_DPAD_UP` 转成 `ABS_HAT0Y`，下/左/右仍走
+`input_report_key(BTN_DPAD_*)`。但设备 KEY 能力位图最大键码只到 318：
+
+```
+# cat /sys/class/input/input3/capabilities/key
+f00000000 0 0 0 7fdb000000000000 0 0 0 0   →  [32,33,34,35, 304..318]
+```
+
+`BTN_DPAD_*`（544~547）没有注册，内核 `input_event()` 里 `test_bit()` 为假即丢弃，
+所以下/左/右从未进过事件队列。改成四个方向统一由 `ABS_HAT0X/ABS_HAT0Y` 承载，
+并在 GPIO 中断里当场 `input_report_abs`（不等 30 ms 的 poll tick），
+`poll` 侧加 `last_hat_x/y` 边沿检测避免重复上报。
+
+**改分辨率后鼠标点击落点错位**
+
+`wm size` 只改 SurfaceFlinger 的 override `DisplayInfo`，不改 `fb0`；而 gammapad 的
+`MouseMode` 只在 `loadConfig()` / `setActive(true)` 时探测一次尺寸，
+`VirtualMouse` 的 `absinfo` max 又在创建时绑死。于是指针坐标系恒为物理分辨率
+1024×768，与 app 坐标系按比例错位。`ngp-fixup.sh` 改为解析 `wm size`
+（优先 `Override size`）写入 `persist.gammaos.gamepad.screen_w/screen_h`
+并重启 gammapad，另起 2 秒轮询看门狗跟进后续变化。
+
 
 ## 5. WiFi：AIC8800DC（USB）替换 AIC8800D80（SDIO）
 

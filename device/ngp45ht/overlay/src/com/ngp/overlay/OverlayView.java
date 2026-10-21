@@ -11,7 +11,7 @@ import android.view.View;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 半透明浮层：4 行文本，等宽字体，最后一行（FPS）单独着色。 */
+/** 半透明浮层：等宽字体多行文本，最后一行（FPS）单独着色。 */
 public class OverlayView extends View {
 
     private final Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);

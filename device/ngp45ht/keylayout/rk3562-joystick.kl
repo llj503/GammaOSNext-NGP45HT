@@ -1,6 +1,8 @@
 # NGP45HT gamepad — driver rk3562-joystick.c (compatible "play_joystick")
 # Input device name: retrogame_joypad
-# 17 GPIO buttons per rk3562-ngp45ht.dts key-gpios-map + 4 ADC sticks
+#
+# 17 GPIO buttons per rk3562-ngp45ht.dts key-gpios-map + 4 ADC sticks.
+# 面键/肩键/选择/开始/Home/L3/R3 上报为 BTN_* key，映射方式与 Xbox 手柄一致。
 key 304   BUTTON_A       # BTN_SOUTH
 key 305   BUTTON_B       # BTN_EAST
 key 307   BUTTON_X       # BTN_NORTH
@@ -14,7 +16,20 @@ key 315   BUTTON_START   # BTN_START
 key 316   HOME           # BTN_MODE
 key 317   BUTTON_THUMBL  # BTN_THUMBL
 key 318   BUTTON_THUMBR  # BTN_THUMBR
-key 544   DPAD_UP        # BTN_DPAD_UP
-key 545   DPAD_DOWN      # BTN_DPAD_DOWN
-key 546   DPAD_LEFT      # BTN_DPAD_LEFT
-key 547   DPAD_RIGHT     # BTN_DPAD_RIGHT
+
+# ── 方向键 ──────────────────────────────────────────────────────────────
+# 方向键不写成 key 行。四个方向在硬件上都是 GPIO，驱动统一汇总后
+# 用 ABS_HAT0X / ABS_HAT0Y 两个轴上报（见 rk3562_gpio_work_func()）。
+#
+# 设备上 input3 的 KEY 能力位图只到第 8 个 word（最大键码 511），
+# BTN_DPAD_*（544..547）并未注册；即便驱动发出来，input 核心也会按
+# test_bit 丢弃。所以 key 544..547 这几行写了也不会生效，反而会掩盖
+# 真实通路——真正的通路是 HAT 轴，必须显式声明：
+axis 0x10 HAT_X
+axis 0x11 HAT_Y
+
+# ── 摇杆 ────────────────────────────────────────────────────────────────
+axis 0x00 X
+axis 0x01 Y
+axis 0x03 RX
+axis 0x04 RY

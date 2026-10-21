@@ -11,3 +11,12 @@ service ngp_fixup /system/bin/sh /vendor/bin/ngp-fixup.sh
 
 on property:sys.boot_completed=1
     start ngp_fixup
+
+# 性能统计守护进程（帧率来源）：init 直接守护，进程退出自动重启。
+# seclabel 用 shell —— 与 AOSP 的 console 服务同款做法，adb shell 里已实测
+# 该域可以 exec /vendor/bin 下的二进制并调用 dumpsys。
+service ngp_statd /vendor/bin/ngp-statd
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0

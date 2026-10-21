@@ -17,7 +17,7 @@ case "$1" in
         chmod 644 $CFG
         rm -f /data/data/com.ngp.overlay/files/pos.cfg   # app 自己记的位置优先级更高，先清掉
         am force-stop com.ngp.overlay
-        am start -n com.ngp.overlay/.StartActivity >/dev/null 2>&1
+        am start -n com.ngp.overlay/.ToggleActivity >/dev/null 2>&1
         echo "overlay: pos $2 ${3:-14}"
         ;;
     drag)
@@ -26,13 +26,13 @@ case "$1" in
         chmod 644 $CFG
         rm -f /data/data/com.ngp.overlay/files/pos.cfg
         am force-stop com.ngp.overlay
-        am start -n com.ngp.overlay/.StartActivity >/dev/null 2>&1
+        am start -n com.ngp.overlay/.ToggleActivity >/dev/null 2>&1
         echo "overlay: drag=$2"
         ;;
     *)
         pidof ngp-statd >/dev/null 2>&1 || setsid /vendor/bin/ngp-statd </dev/null >/dev/null 2>&1 &
         appops set com.ngp.overlay SYSTEM_ALERT_WINDOW allow >/dev/null 2>&1
-        am start -n com.ngp.overlay/.StartActivity >/dev/null 2>&1
+        am start -n com.ngp.overlay/.ToggleActivity >/dev/null 2>&1
         echo "overlay: on"
         ;;
 esac
