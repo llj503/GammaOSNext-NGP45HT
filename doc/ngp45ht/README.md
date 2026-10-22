@@ -91,13 +91,15 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v12 | + 悬浮窗 CPU 占用率、内存占比 | vendor |
 | v13 | + 悬浮窗前台服务、桌面开关图标 | vendor |
 | v14 | + nano 方向 `rev_landscape` | vendor |
-| **v15** | **+ 方向键四向 HAT 化（内核）、鼠标落点分辨率同步** | **Fat、system、vendor** |
+| v15 | + 方向键四向 HAT 化（内核）、鼠标落点分辨率同步 | Fat、system、vendor |
+| **v16** | **+ 全新刷机方向修正：logo.bmp 改横版、删 fbcon=rotate、build.prop 给死 nano 方向、gammapad 重启去竞态** | **Fat、system、vendor** |
 
 | 版本 | 交付镜像 | md5 |
 |---|---|---|
 | v3 | `GammaOSCore-NGP45HT-20261015-v3.img` | `03951a3bb01135aa057b306c2e6f281b` |
 | v4 | `GammaOSCore-NGP45HT-20261015-v4.img` | `512f62df34c1e45d5f79245b447cf489` |
-| **v15** | `GammaOSCore-NGP45HT-20261021-v15.img` | `00bc41eaccab1fb241687e610a4dbcbd` |
+| v15 | `GammaOSCore-NGP45HT-20261021-v15.img` | `00bc41eaccab1fb241687e610a4dbcbd` |
+| **v16** | `GammaOSCore-NGP45HT-20261022-v16.img` | `2013ad003524ebd35ca39e6cb08262ba` |
 
 均为 5,451,564,032 B。注入方法：免特权 `dd` 抽分区 → `debugfs -w -f` 命令文件注入 →
 `e2fsck -fn` → `dd` 写回 → 区域级 `cmp` 比对（除目标分区外零改动，GPT 未动）。
@@ -105,6 +107,42 @@ v4 三重验证：重抽 vendor 与注入源 `cmp` 一致、e2fsck 干净（1434
 v3↔v4 非 vendor 区域（含 userdata 全量）md5 相同 `515bc9a0…`。
 v15 三重验证：三个分区回读 md5 与源镜像全一致、FAT 内 Image/DTB/conf 回读命中、
 `fsck.fat` 与 `e2fsck -fn` 全通过、真机 `/proc/version` 命中新内核。
+
+### v16：全新刷机才暴露的四条默认值错误
+
+v15 在自己机器上一切正常，别人全新烧录后开机 LOGO 转 90°、进系统屏幕颠倒、
+nano 里也颠倒、鼠标点击乱飞、改分辨率后出现两个点击点。
+
+根因不是新代码引入的，而是**方向一直靠 `/data` 里手工 setprop 的 persist 属性撑着**。
+全新刷机 `/data` 为空，属性回落到 `build.prop` 默认值，而默认值是照搬 RG52 Mini
+（720×1280 竖屏）的。本机设备与 build.prop 逐项比对 76 项 persist 属性，
+只有 `persist.gammaos.nano.drm_flip_v` 一项不一致：设备 `0`，默认 `1`。
+
+四处改动：
+
+| # | 问题 | 改动 |
+|---|---|---|
+| ① | 开机 LOGO 转 90° | `dArkOS_Fat::/logo.bmp` 是 720×1280 竖图（印着 "RG52 MINI"），换成 1024×768 横版，只保留泼墨图形，8bit 256 色不变 |
+| ② | 内核控制台竖排 | `extlinux.conf` 删掉残留的 `fbcon=rotate:1`（仓库模板早改了，镜像里那份没同步） |
+| ③ | nano 上下颠倒 | `build.prop` 写死 `drm_flip_v=0` / `drm_flip_h=0` / `nano.orientation=rev_landscape`；`ngp-fixup.sh` 的 flip 判断从「为空才补 0」改成「不是 0 就纠回 0」 |
+| ④ | 改分辨率后两个点击点 | 重启 gammapad 时等 `init.svc.gammapad` 走到 `stopped` 再 `start` 并等回 `running`，中途残留就 `killall -9`；服务未运行时不重启；两次重启至少隔 5 秒 |
+
+③ 还解释了「重启一次就好」的假象：`ngp-fixup.sh` 挂在 `sys.boot_completed=1`，
+实测约 56 秒才跑，而 `gammaos-nano` 是 `class core animation`，早就接管屏幕了。
+首次开机读到空 orientation 就走未初始化矩阵分支；脚本补上 `rev_landscape` 后，
+下一次进 nano 才正常。
+
+已刷 v15 的机器不重刷也能救系统内颠倒与双光标：
+
+```sh
+adb root
+adb shell setprop persist.gammaos.nano.drm_flip_v 0
+adb shell setprop persist.gammaos.nano.drm_flip_h 0
+adb shell setprop persist.gammaos.nano.orientation rev_landscape
+adb reboot
+```
+
+（FAT 分区里的 `logo.bmp` 和 `fbcon` 只能改卡或刷 v16。）
 
 ### v15 的两处修复
 

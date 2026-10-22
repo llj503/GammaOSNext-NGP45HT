@@ -1,8 +1,18 @@
 --- a/system/build.prop
 +++ b/system/build.prop
-@@ -302,3 +302,3 @@
+@@ -302,6 +302,6 @@
  # NGP45HT: panel is natively 1024x768 landscape (RG52mini is 640x480 portrait)
 -ro.surface_flinger.primary_display_orientation=ORIENTATION_90
 -persist.rg52.fixed_rotation=1
 +ro.surface_flinger.primary_display_orientation=ORIENTATION_0
 +persist.rg52.fixed_rotation=0
+@@ -304,2 +304,5 @@
++# nano 的输出方向。这三行必须给默认值，不能只靠 ngp-fixup.sh 事后 setprop：
++# gammaos-nano 是 class core animation，比 boot_completed（实测约 56 秒）早得多，
++# 全新刷机 /data 为空时它会读到空值并走未初始化矩阵分支，画面直接颠倒。
++# drm_flip_v 上游原值是 1（RG52mini 的屏倒装），在横屏机上会再叠一次上下翻转。
+ persist.gammaos.ext.force_mirror=true
+-persist.gammaos.nano.drm_flip_v=1
++persist.gammaos.nano.drm_flip_v=0
++persist.gammaos.nano.drm_flip_h=0
++persist.gammaos.nano.orientation=rev_landscape

@@ -50,11 +50,21 @@ case "$NANO_ORIENT" in
         setprop persist.gammaos.nano.orientation rev_landscape
         log -t $TAG "nano orientation fixed: '$NANO_ORIENT' -> rev_landscape" ;;
 esac
-# drm_flip_h/v 是用户级微调，默认必须是 0；这两个值非 0 会叠加翻转。
-[ "$(getprop persist.gammaos.nano.drm_flip_h)" = "" ] && \
-    setprop persist.gammaos.nano.drm_flip_h 0
-[ "$(getprop persist.gammaos.nano.drm_flip_v)" = "" ] && \
-    setprop persist.gammaos.nano.drm_flip_v 0
+# drm_flip_h/v 是叠加在 orientation 之上的额外翻转，本机两轴都必须是 0。
+#
+# 注意：只在"值为空"时补 0 是不够的。镜像 build.prop 的上游原值就带着
+#   persist.gammaos.nano.drm_flip_v=1    （RG52Mini 的屏是倒装的）
+# 属性非空 => 空值判断不成立 => 1 一路留到 nano 手里，和 rev_landscape
+# 再叠一次上下翻转，画面就是上下颠倒的。全新刷机的 /data 是空的，
+# 必然吃到这个 1；老机器只是因为 /data 里历史遗留了 0 才看起来正常。
+# 所以这里改成"只要不是 0 就纠回 0"，两轴都管。
+for _axis in h v; do
+    _cur=$(getprop persist.gammaos.nano.drm_flip_$_axis)
+    if [ "$_cur" != "0" ]; then
+        setprop persist.gammaos.nano.drm_flip_$_axis 0
+        log -t $TAG "nano drm_flip_$_axis fixed: '$_cur' -> 0"
+    fi
+done
 
 # ⓪b 鼠标模式（gammapad）屏幕尺寸同步。
 #
@@ -88,19 +98,58 @@ ngp_wm_size() {
     WM_H=${WM_RES#*x}
 }
 
+ngp_restart_gammapad() {
+    # init 的 stop 是异步的。stop 完立刻 start，旧进程可能还没退干净：
+    # 轻则 init 认为服务已在跑而忽略 start，重则两个 gammapad 并存。
+    # 每个 gammapad 都会建一个 VirtualMouse uinput 设备，屏幕上就多出
+    # 一个光标 —— 用户看到的是"一个点击变成两个点击点"。
+    # 所以必须等 init.svc 真的走到 stopped，再 start 并等 running。
+    setprop ctl.stop gammapad
+    _n=0
+    while [ "$_n" -lt 40 ]; do
+        [ "$(getprop init.svc.gammapad)" = "stopped" ] && break
+        sleep 0.25
+        _n=$((_n + 1))
+    done
+    if pidof gammapad >/dev/null 2>&1; then
+        log -t $TAG "gammapad survived stop, killing"
+        killall -9 gammapad 2>/dev/null
+        sleep 0.5
+    fi
+    setprop ctl.start gammapad
+    _n=0
+    while [ "$_n" -lt 40 ]; do
+        [ "$(getprop init.svc.gammapad)" = "running" ] && break
+        sleep 0.25
+        _n=$((_n + 1))
+    done
+    log -t $TAG "gammapad restarted, svc=$(getprop init.svc.gammapad) pid=$(pidof gammapad)"
+}
+
+NGP_LAST_RESTART=0
+
 ngp_sync_screen() {
     ngp_wm_size
     case "$WM_W" in ''|*[!0-9]*) return 1 ;; esac
     case "$WM_H" in ''|*[!0-9]*) return 1 ;; esac
-    if [ "$(getprop persist.gammaos.gamepad.screen_w)" != "$WM_W" ] || \
-       [ "$(getprop persist.gammaos.gamepad.screen_h)" != "$WM_H" ]; then
-        setprop persist.gammaos.gamepad.screen_w "$WM_W"
-        setprop persist.gammaos.gamepad.screen_h "$WM_H"
-        log -t $TAG "gammapad screen -> ${WM_W}x${WM_H}, restarting gammapad"
-        setprop ctl.stop gammapad
-        sleep 1
-        setprop ctl.start gammapad
+    if [ "$(getprop persist.gammaos.gamepad.screen_w)" = "$WM_W" ] && \
+       [ "$(getprop persist.gammaos.gamepad.screen_h)" = "$WM_H" ]; then
+        return 0
     fi
+
+    setprop persist.gammaos.gamepad.screen_w "$WM_W"
+    setprop persist.gammaos.gamepad.screen_h "$WM_H"
+    log -t $TAG "gammapad screen -> ${WM_W}x${WM_H}"
+
+    # 服务还没起来就别动它：init 拉起时会自己读刚写好的属性。
+    # 只有它已经在跑（已经用旧尺寸建过 VirtualMouse）才需要重启。
+    [ "$(getprop init.svc.gammapad)" = "running" ] || return 0
+
+    # 两次重启至少隔 5 秒，避免 wm size 抖动时反复重启。
+    _now=$(date +%s)
+    [ $((_now - NGP_LAST_RESTART)) -lt 5 ] && return 0
+    NGP_LAST_RESTART=$_now
+    ngp_restart_gammapad
     return 0
 }
 
