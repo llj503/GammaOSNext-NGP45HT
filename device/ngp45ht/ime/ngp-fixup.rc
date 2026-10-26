@@ -15,6 +15,11 @@ on property:sys.boot_completed=1
 # 性能统计守护进程（帧率来源）：init 直接守护，进程退出自动重启。
 # seclabel 用 shell —— 与 AOSP 的 console 服务同款做法，adb shell 里已实测
 # 该域可以 exec /vendor/bin 下的二进制并调用 dumpsys。
+#
+# 注意它的工作方式：进程常驻，但**只在 com.ngp.overlay 进程存在时才真正采样**。
+# 悬浮窗没打开的时候它每 5 秒扫一次 /proc 就继续睡，完全不碰 SurfaceFlinger
+# （每次采样都要 fork 一个 dumpsys，也就是一个 JVM，2GB 机上不该白付）。
+# 所以这个服务"起来"不等于"在耗电"，也不需要为它做开机开关。
 service ngp_statd /vendor/bin/ngp-statd
     class late_start
     user root

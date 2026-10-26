@@ -227,8 +227,39 @@ int main(void) {
     double fps = -1;
     int fail = 0;
     int tick = 0;
+    int idle = 0;
 
     for (;;) {
+        /* 悬浮窗没打开就空转。
+         *
+         * 每次采样都要 fork 一个 /system/bin/dumpsys，而 dumpsys 是
+         * app_process 拉起的 JVM，2GB 机器上这个开销不能忽略。用户不开
+         * 悬浮窗时没有任何理由付这笔钱，所以这里先看一眼 app 进程在不在，
+         * 不在就只每 5 秒扫一次 /proc（开销可忽略），完全不碰 SurfaceFlinger。
+         *
+         * 用"进程是否存在"而不是"属性/文件开关"当信号，是因为 app 进程
+         * CapBnd 为空、既不能 setprop 也不能启动 init 服务；反过来 root
+         * 守护进程读 /proc 是无条件的，不依赖任何提权通道。 */
+        if (pid_of(OVERLAY_PKG) <= 0) {
+            if (!idle) {
+                idle = 1;
+                /* 清掉上次留下的帧率，免得 app 打开时先显示一个过期数字 */
+                write_status(-1, now_ms(), 0);
+            }
+            sleep_ms(5000);
+            continue;
+        }
+        if (idle) {
+            /* 从空转切回采样：熄屏或长时间不 dump 后 SF 会把 TimeStats
+             * 关掉，这里重开一次并丢弃旧基线，否则第一帧会算出离谱的 fps。 */
+            idle = 0;
+            last_frames = -1;
+            last_ms = 0;
+            fps = -1;
+            fail = 0;
+            enable_timestats();
+        }
+
         if (++tick % GUARD_EVERY == 0) pin_overlay_adj();
 
         long long t0 = now_ms();

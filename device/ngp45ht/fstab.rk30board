@@ -1,0 +1,23 @@
+# Android fstab for RG52Mini Android 13 (V39)
+# NO slotselect, NO avb, NO logical partitions
+system  /system  erofs ro           wait,first_stage_mount
+system  /system   ext4 ro,barrier=1 wait,first_stage_mount
+vendor  /vendor  erofs ro           wait,first_stage_mount
+vendor  /vendor   ext4 ro,barrier=1 wait,first_stage_mount
+odm     /odm     erofs ro           wait,first_stage_mount
+odm     /odm      ext4 ro,barrier=1 wait,first_stage_mount
+/dev/block/by-name/cache    /cache      ext4 noatime,nodiratime,nosuid,nodev,noauto_da_alloc,discard    wait,check
+/dev/block/by-name/metadata /metadata   ext4 nodev,noatime,nosuid,discard,sync                          wait,formattable,first_stage_mount,check
+/dev/block/by-name/misc     /misc       emmc defaults     defaults
+/devices/platform/*usb*   auto vfat defaults      voldmanaged=usb:auto
+/devices/platform/*.sata* auto vfat defaults voldmanaged=sata:auto
+/devices/platform/*.pcie* auto vfat defaults voldmanaged=pcie:auto
+# NGP45HT 的第二个 TF 卡槽（SD 卡，mmc2，挂在 ff890000.mmc 控制器上）。
+# 原厂 fstab 只写了 usb/sata/pcie，漏了 SD，导致插卡后内核认到 mmcblk2 但
+# vold 不接管 —— 系统里既没有 /storage/XXXX-XXXX 也没有任何提示。
+# 这里按控制器精确匹配，不能写 *.mmc*：系统盘 mmcblk1 在 ff880000.mmc 上，
+# 用通配符会把正在运行的根分区也交给 vold 管，风险太大。
+# vfat 这一列对 FAT32/exFAT 都适用，vold 会再用 blkid 判实际类型。
+/devices/platform/ff890000.mmc* auto vfat defaults voldmanaged=sd:auto
+/dev/block/zram0                                none                swap      defaults                                             zramsize=100%
+/dev/block/by-name/userdata /data ext4 noatime,nosuid,nodev,data=ordered,barrier=1 latemount,wait,check,formattable

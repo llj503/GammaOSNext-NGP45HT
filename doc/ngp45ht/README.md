@@ -92,14 +92,28 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v13 | + 悬浮窗前台服务、桌面开关图标 | vendor |
 | v14 | + nano 方向 `rev_landscape` | vendor |
 | v15 | + 方向键四向 HAT 化（内核）、鼠标落点分辨率同步 | Fat、system、vendor |
-| **v16** | **+ 全新刷机方向修正：logo.bmp 改横版、删 fbcon=rotate、build.prop 给死 nano 方向、gammapad 重启去竞态** | **Fat、system、vendor** |
+| v16 | + 全新刷机方向修正：logo.bmp 改横版、删 fbcon=rotate、build.prop 给死 nano 方向、gammapad 重启去竞态 | Fat、system、vendor |
+| v17 | 以 v13 卡 1:1 为底座重建（v16 开机重启翻车后回退），唯一改动是脚本去掉常驻看门狗 | vendor |
+| v19 | + 三项 build.prop 出厂默认值：`drm_flip_v=0` / `rotate.enabled=0` / `abxy_swap=1` | system |
+| v20 | + 脚本末尾加 `wm set-ignore-orientation-request`（界面转 180° 的真正解法） | vendor |
+| v21 | 把上面那条 `wm` 从脚本末尾（`sleep 70` 之后）移到开头，翻转窗口 75s → 58s | vendor |
+| v22 | + 性能悬浮窗开机不自启（`pm disable .BootReceiver`）、statd 改按需采样 | vendor |
+| v23 | + 方向锁改用 `wm fixed-to-user-rotation enabled`（修好 nano 正常但进游戏翻转） | vendor |
+| **v24** | **+ fstab 补上第二个 TF 卡槽的 `voldmanaged=sd:auto`（此前插卡完全不识别）** | **vendor** |
 
 | 版本 | 交付镜像 | md5 |
 |---|---|---|
 | v3 | `GammaOSCore-NGP45HT-20261015-v3.img` | `03951a3bb01135aa057b306c2e6f281b` |
 | v4 | `GammaOSCore-NGP45HT-20261015-v4.img` | `512f62df34c1e45d5f79245b447cf489` |
 | v15 | `GammaOSCore-NGP45HT-20261021-v15.img` | `00bc41eaccab1fb241687e610a4dbcbd` |
-| **v16** | `GammaOSCore-NGP45HT-20261022-v16.img` | `2013ad003524ebd35ca39e6cb08262ba` |
+| v16 | `GammaOSCore-NGP45HT-20261022-v16.img` | `2013ad003524ebd35ca39e6cb08262ba`（**开机重启，已废弃**） |
+| v17 | `GammaOSCore-NGP45HT-20261022-v17.img` | `911f104e1da550448b3c15005423d415` |
+| v19 | `GammaOSCore-NGP45HT-20261022-v19.img` | `25da8797aadf1f35fb971c30865e7ab7` |
+| v20 | `GammaOSCore-NGP45HT-20261022-v20.img` | `22e2aa796e70b3681672d6ee975a4b50` |
+| v21 | `GammaOSCore-NGP45HT-20261022-v21.img` | `f66622e7ce241b8b1a0c8fec75950350` |
+| v22 | `GammaOSCore-NGP45HT-20261022-v22.img` | `66431dec1d6955c0bbf6f3fef3576778` |
+| v23 | `GammaOSCore-NGP45HT-20261022-v23.img` | `df01804797d4ada146c4e05789cce7f1` |
+| **v24** | `GammaOSCore-NGP45HT-20261026-v24.img` | `d31cb3477536585811e8c964672ec6b7` |
 
 均为 5,451,564,032 B。注入方法：免特权 `dd` 抽分区 → `debugfs -w -f` 命令文件注入 →
 `e2fsck -fn` → `dd` 写回 → 区域级 `cmp` 比对（除目标分区外零改动，GPT 未动）。
