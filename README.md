@@ -59,11 +59,13 @@ bash buildtv.sh nosync      # GammaOS Core（Android TV 版），产出 system.i
 |---|---|
 | 屏幕 / 手柄 DTB | 已就绪，随内核树一起构建 |
 | 内核与模块 | `Image`（5.10.226-rg52mini-ngp45ht）+ `rk3562-ngp45ht.dtb` 已构建 |
-| SD 卡镜像 | 已组装并三重校验，5.45 GB（当前 **v16**，底座为上游 v1.10） |
+| SD 卡镜像 | 已组装并三重校验，5.45 GB（当前 **v24**，xz 压缩后 1.69 GB，底座为上游 v1.10） |
 | 启动、显示、输入、音频、RetroArch | 实机验证通过 |
 | 方向键 | 四向均正常（v15 改为统一走 HAT 轴，此前下/左/右被内核丢弃） |
 | 鼠标模式 | 改分辨率后落点自动跟随（v15）；重启 gammapad 改为等状态机，不再出现双光标（v16） |
-| 屏幕方向（全新刷机） | v16 修好：`logo.bmp` 换成 1024×768 横版、删 `fbcon=rotate:1`、`build.prop` 给死 `drm_flip_v=0` / `orientation=rev_landscape` |
+| 屏幕方向（全新刷机） | v16 修好 LOGO 与控制台旋转；v23 起改用 `wm fixed-to-user-rotation enabled` 锁死显示方向，nano 和游戏都不再翻转 |
+| 性能悬浮窗 | v22 起开机不自启，点桌面「NGP 悬浮窗开关」打开；没打开时 statd 空转（0.1% CPU），不再每秒 fork 一次 dumpsys |
+| 第二个 TF 卡槽 | v24 起可识别（fstab 补 `voldmanaged=sd:auto`）。挂载点是 vold 给的占位 UUID，读写正常 |
 | Wi-Fi（AIC8800DC / USB） | 可用：连网并访问外网，含防假死看门狗 |
 | RetroArch 简体中文 | 首次开机自动部署 |
 | 关机 / 断电 | 正常：修复了 `mmc_sd_shutdown` 空指针 panic（此前会导致关机失败、整夜耗光电） |
