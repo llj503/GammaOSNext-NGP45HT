@@ -19,6 +19,44 @@ IME_ID=com.android.inputmethod.leanback/.service.LeanbackImeService
 
 log -t $TAG "start"
 
+# ⓪a 默认桌面：固定为 LANGOS（com.retrofront）。
+#
+# Daijishou 已从本机卸载，而 /system/bin/rg52-home.sh 守的是它 —— 包不在时
+# 只打一条 warning 就退出，等于没人兜底；万一 home 偏好丢了会停在选择框。
+# 这里每次开机都显式指定一次（幂等，成本一条 cmd）。
+# 注意：必须确认包存在再设，指向不存在的组件会让 home 永久解析失败。
+if pm path com.retrofront >/dev/null 2>&1; then
+    cmd package set-home-activity --user 0 com.retrofront/.NativeActivity >/dev/null 2>&1
+    log -t $TAG "home -> com.retrofront/.NativeActivity"
+fi
+
+# ⓪a-2 存储竞态：LANGOS 作为桌面会比 vold 先起，那时 TF2 还没挂上，
+#   它读不到上次记下的 rom_root 就直接拉起 SAF 目录选择框（开机必现）。
+#   等 public 卷挂载完成后，如果前台仍是 documentsui 的选择页，重启一次
+#   LANGOS —— 实测重启后直接进游戏库，不再弹框。
+if pm path com.retrofront >/dev/null 2>&1; then
+    _i=0
+    while [ "$_i" -lt 15 ]; do
+        sm list-volumes all 2>/dev/null | grep -q 'public:.*mounted' && break
+        sleep 2
+        _i=$((_i + 1))
+    done
+    # 选择框可能在存储挂上后几秒才弹，轮询 5 次（10 秒）
+    _j=0
+    while [ "$_j" -lt 5 ]; do
+        if dumpsys window 2>/dev/null | grep -q 'documentsui.*PickActivity'; then
+            am force-stop com.android.documentsui >/dev/null 2>&1
+            am force-stop com.retrofront >/dev/null 2>&1
+            sleep 1
+            am start -n com.retrofront/com.retrofront.NativeActivity >/dev/null 2>&1
+            log -t $TAG "storage came late: launcher relaunched"
+            break
+        fi
+        sleep 2
+        _j=$((_j + 1))
+    done
+fi
+
 # ⓪c 锁定显示方向：让 WindowManager 忽略应用自己请求的 screenOrientation。
 #
 # 现象：首次开机向导、系统设置、RetroArch 等界面整个转 180 度（上下颠倒），
@@ -190,10 +228,44 @@ if pm path com.ngp.overlay >/dev/null 2>&1; then
     log -t $TAG "overlay: autostart off, open from launcher"
 fi
 
-# ③ rg52-ime.sh 在 boot_completed 后循环 30 次 × 2 秒，等它结束再收尾
+# ③ 等 rg52-ime.sh 的 60 秒循环跑完，再定终态输入法。
+#    优先讯飞输入法（com.iflytek.inputmethod，中文拼音，全屏候选，手柄/遥控器可用）；
+#    包不在才回落 leanback。
+#
+# 为什么是讯飞：
+#   - 系统自带的两个键盘（AOSP leanback、LeanKey）都只有英文，没有中文拼音；
+#   - 搜狗输入法TV版（com.sohu.inputmethod.sogou.tv）APKPure 上那份是残缺包，
+#     解出来 0 个 .so，IMEInterface.native_setup 直接 UnsatisfiedLinkError，
+#     键盘只能弹出一次（第一次是空壳）随后窗口退化成 [512,768][512,768]，已弃用；
+#   - 讯飞这份 lib/arm64-v8a 下有 48 个 .so，targetSdk 30，Android 14 正常跑。
+IFLY_IME=com.iflytek.inputmethod/.FlyIME
+IFLY_PKG=com.iflytek.inputmethod
 sleep 70
-ime enable $IME_ID >/dev/null 2>&1
-ime set $IME_ID >/dev/null 2>&1
+if pm path $IFLY_PKG >/dev/null 2>&1; then
+    # 必须先写进 enabled_input_methods，否则 ime set 报
+    # "Unknown input method ... cannot be selected for user #0"
+    settings put secure enabled_input_methods "$IFLY_IME:$IME_ID" >/dev/null 2>&1
+    ime enable $IFLY_IME >/dev/null 2>&1
+    ime set $IFLY_IME >/dev/null 2>&1
+
+    # 讯飞首次启动会弹「服务和隐私条款概要」（PrivacyPolicyActivity）。
+    # 在用户点「同意」之前，这个引导会由 IME 自己在键盘窗口里再画一次，
+    # 把真实键盘整个盖掉 —— 表现就是"键盘弹出来了但看不见、点不了"。
+    # 脚本没法替用户点（该页是普通 Activity，只能人用手柄/触屏点「同意」），
+    # 所以这里不做任何自动操作，只在首次需要时把页面拉出来给用户点。
+    if [ ! -f /data/local/tmp/.iflytek_agreed ]; then
+        _cur=$(dumpsys window 2>/dev/null | grep -o 'mCurrentFocus=Window{[^}]*}' | head -n 1)
+        if echo "$_cur" | grep -qE 'com.retrofront|tvlauncher'; then
+            am start -n $IFLY_PKG/com.iflytek.inputmethod.wizard.PrivacyPolicyActivity \
+                >/dev/null 2>&1
+            log -t $TAG "iflytek: privacy wizard surfaced (need one-time tap)"
+        fi
+    fi
+fi
+if [ "$(settings get secure default_input_method 2>/dev/null)" != "$IFLY_IME" ]; then
+    ime enable $IME_ID >/dev/null 2>&1
+    ime set $IME_ID >/dev/null 2>&1
+fi
 
 log -t $TAG "done, method=$(settings get secure default_input_method 2>/dev/null)"
 

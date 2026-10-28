@@ -605,25 +605,165 @@
 	status = "disabled";
 };
 
-/*
- * The stock board puts the RK628 RGB-to-HDMI bridge on i2c3 with its own
- * reset/enable pins, not on i2c4 as the shared dtsi assumes.  Left disabled
- * for bring-up so it does not claim GPIO3_C0/C1/C2 or GPIO0_A0.
+/* ---- HDMI out: RK628D RGB-to-HDMI bridge on i2c3 ---------------------- *
+ *
+ * This board does have a physical HDMI socket, but RK3562 has no native
+ * HDMI transmitter (rk3562.dtsi contains no dw-hdmi node, and the VOP only
+ * exposes vp0 -> rgb / dsi / lvds).  What the socket is wired to is an
+ * RK628D bridge: VOP -> parallel RGB -> RK628D -> HDMI.
+ *
+ * The shared rk3562-darkos.dtsi puts that bridge on i2c4 at 0x50, which is
+ * where the RG52 Mini / RG43H Pro have it.  On this board it is on i2c3
+ * instead: i2cdetect on the running system shows i2c-4 completely empty
+ * while the stock firmware's own device tree names
+ * "/i2c@ffa20000/rk628@50" (i2c3 = 0xffa20000).  Everything below is taken
+ * from that stock tree, converted out of its phandle form:
+ *
+ *   enable-gpios  = <&gpio3 14 0>  -> GPIO3_B6, active high
+ *   reset-gpios   = <&gpio3 10 1>  -> GPIO3_B2, active low
+ *   interrupts    = <11 4> on gpio3-> GPIO3_B3, level high
+ *   pinctrl-0     = rk628-reset (gpio3 B2) + refclk-pins (gpio0 A0 func1)
+ *
+ * None of these three lines collide with anything else here: the 17 gamepad
+ * buttons use gpio1 D1..D4/C7, gpio2 A0/A1, gpio0 A5/B3..B7/C3/C5..C7 and
+ * gpio3 A6; USB host 5V is gpio3 C0 / B0.  The charging LEDs are gpio3
+ * A7 (dc_det), C1 (blue), C2 (red) and C3 (display) and match the stock
+ * tree exactly, so they are not in the way either.
+ *
+ * Note the shared dtsi's own values (gpio3 C0 enable / C1 reset / C2 irq)
+ * are wrong for this board -- C1 is the blue charge LED and C2 the red one.
  */
+&i2c3 {
+	status = "okay";
+	clock-frequency = <400000>;
+
+	rk628: rk628@50 {
+		status = "okay";
+		compatible = "rockchip,rk628";
+		reg = <0x50>;
+		#sound-dai-cells = <0>;
+		interrupt-parent = <&gpio3>;
+		interrupts = <RK_PB3 IRQ_TYPE_LEVEL_HIGH>;
+		enable-gpios = <&gpio3 RK_PB6 GPIO_ACTIVE_HIGH>;
+		reset-gpios = <&gpio3 RK_PB2 GPIO_ACTIVE_LOW>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&ngp_rk628_reset &ngp_rk628_refclk>;
+		assigned-clocks = <&cru CLK_PMU1_WIFI>;
+		assigned-clock-rates = <24000000>;
+		clocks = <&cru CLK_PMU1_WIFI>;
+		clock-names = "soc_24M";
+		mode-sync-pol = <0>;
+		rk628-rgb-in;
+		rk628-hdmi-out;
+
+		port {
+			/*
+			 * Cannot reuse the dtsi's "rgb_in_hdmi" label: that one
+			 * still exists on the (now disabled) i2c4 node and DTC
+			 * rejects duplicate labels.  The RGB side below is
+			 * patched by absolute path instead, and the dtsi's i2c4
+			 * node is disabled so nothing else points at it.
+			 */
+			ngp_rgb_in_hdmi: endpoint {
+				remote-endpoint = <&rgb_out_hdmi>;
+			};
+		};
+	};
+};
+
+/* The dtsi's rk628 node on i2c4 must not probe: on this board i2c4 is bare,
+ * and its GPIO assignments would fight the charge LEDs. */
 &i2c4_rk628 {
 	status = "disabled";
 };
 
-&rk628_sound {
+/*
+ * Disable the i2c4 controller itself, not just the bridge underneath it.
+ * i2c4m0-xfer claims GPIO3_B6/GPIO3_B7 as its SDA/SCL, and GPIO3_B6 is the
+ * RK628 enable line.  Leaving the bus enabled leaves those pins muxed to i2c
+ * and the bridge never gets powered -- identical symptom to a board fault.
+ */
+&i2c4 {
 	status = "disabled";
 };
 
+/*
+ * HDMI audio: SAI2 -> RK628 over I2S.  The card node itself (rk628_sound)
+ * comes from the shared dtsi and points at &i2c4_rk628, which is disabled
+ * here, so retarget the codec at the live node on i2c3.
+ *
+ * The CPU DAI has to be brought up separately, and it is SAI2 (ff820000),
+ * not SAI1 -- the stock firmware also leaves SAI1 disabled.  Everything
+ * that touches &sai2 belongs in one place because the pin list matters:
+ * the dtsi's default pinctrl-0 also claims i2s2m0_sdi on GPIO2_A0, and on
+ * this board GPIO2_A0 is a gamepad button.  HDMI only carries audio out, so
+ * drop SDI and keep LRCK / SCLK / SDO -- same three groups the stock DTB
+ * uses (GPIO1_D6, GPIO1_D5, GPIO1_D7).
+ */
+&sai2 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&i2s2m0_lrck &i2s2m0_sclk &i2s2m0_sdo>;
+};
+
+&rk628_sound {
+	status = "okay";
+
+	/*
+	 * The dtsi hard-codes &sai1 as the CPU DAI, but SAI1 is disabled on this
+	 * board (the stock firmware leaves it disabled too), so the card never
+	 * binds and /proc/asound/cards stays empty with no error in the log.
+	 * The bridge is wired to SAI2 instead.
+	 */
+	simple-audio-card,cpu {
+		sound-dai = <&sai2>;
+	};
+
+	simple-audio-card,codec {
+		sound-dai = <&rk628>;
+	};
+};
+
+/*
+ * Parallel RGB output that feeds the bridge.
+ *
+ * The 24-bit RGB bus plus the sync/clock lines must be muxed to their VO
+ * alternate function, otherwise the pins stay on their GPIO default and the
+ * bridge sees no signal at all -- which looks exactly like "the chip is not
+ * powered", because rk628_probe() then cannot reach the HDMI register window.
+ * Pin list is the one the stock firmware uses (pinctrl "vo-pins").
+ */
 &rgb {
-	status = "disabled";
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&ngp_vo_pins>;
+
+	ports {
+		port@0 {
+			rgb_in_vp0: endpoint@0 {
+				status = "okay";
+			};
+		};
+
+		port@1 {
+			rgb_out_hdmi: endpoint {
+				remote-endpoint = <&ngp_rgb_in_hdmi>;
+			};
+		};
+	};
 };
 
 &route_rgb {
-	status = "disabled";
+	status = "okay";
+	connect = <&vp0_out_rgb>;
+};
+
+&vop {
+	status = "okay";
+};
+
+&vop_mmu {
+	status = "okay";
 };
 
 /*
@@ -658,6 +798,62 @@
 /* ---- Pin control -------------------------------------------------------- */
 
 &pinctrl {
+	/*
+	 * RK628D HDMI bridge pins, straight from the stock tree's own rk628
+	 * pinctrl group: reset on GPIO3_B2 (func0 = GPIO), and a 24 MHz
+	 * reference clock generated on GPIO0_A0 (func1 = CLK_PMU1_WIFI).
+	 * The enable line GPIO3_B6 needs no pinmux entry, it is plain GPIO.
+	 */
+	rk628 {
+		ngp_rk628_reset: ngp-rk628-reset {
+			rockchip,pins = <3 RK_PB2 RK_FUNC_GPIO &pcfg_pull_none>;
+		};
+
+		ngp_rk628_refclk: ngp-rk628-refclk {
+			rockchip,pins = <0 RK_PA0 1 &pcfg_pull_none>;
+		};
+	};
+
+	/*
+	 * VO (video output) pinmux for the parallel RGB bus feeding RK628D.
+	 * Copied pin-for-pin from the stock firmware's "vo-pins" group -- 28
+	 * entries, all function 1, no pulls.  Without this the RGB pins keep
+	 * their reset default and the bridge receives nothing.
+	 */
+	vo {
+		ngp_vo_pins: ngp-vo-pins {
+			rockchip,pins =
+				<4 RK_PB7 1 &pcfg_pull_none>,
+				<4 RK_PA4 1 &pcfg_pull_none>,
+				<4 RK_PA5 1 &pcfg_pull_none>,
+				<4 RK_PB2 1 &pcfg_pull_none>,
+				<3 RK_PC4 1 &pcfg_pull_none>,
+				<3 RK_PC5 1 &pcfg_pull_none>,
+				<3 RK_PC6 1 &pcfg_pull_none>,
+				<3 RK_PC7 1 &pcfg_pull_none>,
+				<3 RK_PD0 1 &pcfg_pull_none>,
+				<4 RK_PA6 1 &pcfg_pull_none>,
+				<4 RK_PA7 1 &pcfg_pull_none>,
+				<3 RK_PD1 1 &pcfg_pull_none>,
+				<3 RK_PD2 1 &pcfg_pull_none>,
+				<3 RK_PD3 1 &pcfg_pull_none>,
+				<3 RK_PD4 1 &pcfg_pull_none>,
+				<3 RK_PD5 1 &pcfg_pull_none>,
+				<3 RK_PD6 1 &pcfg_pull_none>,
+				<4 RK_PB0 1 &pcfg_pull_none>,
+				<4 RK_PB1 1 &pcfg_pull_none>,
+				<4 RK_PB3 1 &pcfg_pull_none>,
+				<3 RK_PD7 1 &pcfg_pull_none>,
+				<4 RK_PA0 1 &pcfg_pull_none>,
+				<4 RK_PA1 1 &pcfg_pull_none>,
+				<4 RK_PA2 1 &pcfg_pull_none>,
+				<4 RK_PA3 1 &pcfg_pull_none>,
+				<4 RK_PB6 1 &pcfg_pull_none>,
+				<4 RK_PB4 1 &pcfg_pull_none>,
+				<4 RK_PB5 1 &pcfg_pull_none>;
+		};
+	};
+
 	buttons {
 		ngp_gpio_key_pin: ngp-gpio-key-pin {
 			rockchip,pins =

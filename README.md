@@ -17,6 +17,7 @@ AISLPC RG52 Mini，同为 RK3562），本仓库已改为只服务于 NGP45HT，
 | 屏幕 | DSI 1024×768@60，4 lane RGB888，`simple-panel-dsi`，init-sequence 写在 DTB 内 |
 | 输入 | `micro-gamepad`（双摇杆 ADC + 4 个 ADC 键 + 17 个 GPIO 键 + 震动马达）+ `adc-keys`（音量±/静音/返回）+ `rk805-pwrkey`，**没有触摸屏** |
 | 音频 / 电源 | `rk817` codec / battery / charger，背光 PWM 256 级，HDMI，u-boot 充电动画 |
+| HDMI | 无原生 HDMI TX，走**外挂 RK628D 桥接**：VOP vp0 → 24 位并行 RGB → RK628D（i2c3 @0x50）→ HDMI。enable=GPIO3_B6、reset=GPIO3_B2、HPD=GPIO3_B3、24 MHz 参考时钟由 GPIO0_A0 输出 |
 | Wi-Fi + 蓝牙 | **AIC8800DC，USB 接口**（`usb 3-1`，VID:PID `a69c:88dc`）。DT 里 `wifi_chip_type="ap6275s"` 是 EVB 遗留，不生效 |
 | USB | DWC3，基础 DTB 里 `dr_mode="otg"` |
 | 原厂系统 | EmuELEC 4.7-Nexus（Linux 6.1.118），仍在 eMMC 上，与本镜像双系统 |
@@ -34,6 +35,7 @@ AISLPC RG52 Mini，同为 RK3562），本仓库已改为只服务于 NGP45HT，
 | RetroArch 简体中文 | `retroarch-zh/`：`retroarch.cfg`、CarroisGothicSC 字体 `zh-CN.ttf`、`rg52-retroarch.rc` 与开机幂等部署脚本 |
 | 蓝牙（实验） | `bt/`：mamaich `btvendor_aic.c` HCI 中继（含 8 条伪造响应）、编译产物 `.so`、shim 模块与部署脚本 |
 | 启动配置 | `boot/`：`extlinux.conf`（`FDT /rk3562-ngp45ht.dtb`，去掉 `fbcon=rotate:1`）+ `rk3562-ngp45ht.dtb` |
+| HDMI（RK628D） | 在同份 `rk3562-ngp45ht.dts` 里：`&i2c3` 挂 `rk628@50`、`&rgb` 接并行 RGB 端点、`&route_rgb` 连 `vp0_out_rgb`。两处易漏：`&rgb` 必须带 `pinctrl-0 = <&ngp_vo_pins>`（28 根 RGB/同步/时钟线切到 VO 功能），以及 `&i2c4 { status = "disabled" }` 要禁**控制器本身**——只禁 `&i2c4_rk628` 子节点时，`i2c4m0-xfer` 会占住 GPIO3_B6（即 RK628 的 enable 线），芯片永远不上电 |
 | 工具脚本 | `scripts/`：`build_kernel.sh`（内核 + DTB 一键构建）、`patch_system.sh`（免 root / 免 loop 的 ext4 离线注入） |
 
 成品 SD 卡镜像由 `~/rainject/build-v6.sh`（本地脚本）在官方 v1.10 镜像基础上合成，
@@ -59,13 +61,14 @@ bash buildtv.sh nosync      # GammaOS Core（Android TV 版），产出 system.i
 |---|---|
 | 屏幕 / 手柄 DTB | 已就绪，随内核树一起构建 |
 | 内核与模块 | `Image`（5.10.226-rg52mini-ngp45ht）+ `rk3562-ngp45ht.dtb` 已构建 |
-| SD 卡镜像 | 已组装并三重校验，5.45 GB（当前 **v24**，xz 压缩后 1.69 GB，底座为上游 v1.10） |
+| SD 卡镜像 | 已组装并三重校验，5.45 GB（当前 **v25**，xz 压缩后 1.69 GB，底座为上游 v1.10） |
 | 启动、显示、输入、音频、RetroArch | 实机验证通过 |
 | 方向键 | 四向均正常（v15 改为统一走 HAT 轴，此前下/左/右被内核丢弃） |
 | 鼠标模式 | 改分辨率后落点自动跟随（v15）；重启 gammapad 改为等状态机，不再出现双光标（v16） |
 | 屏幕方向（全新刷机） | v16 修好 LOGO 与控制台旋转；v23 起改用 `wm fixed-to-user-rotation enabled` 锁死显示方向，nano 和游戏都不再翻转 |
 | 性能悬浮窗 | v22 起开机不自启，点桌面「NGP 悬浮窗开关」打开；没打开时 statd 空转（0.1% CPU），不再每秒 fork 一次 dumpsys |
 | 第二个 TF 卡槽 | v24 起可识别（fstab 补 `voldmanaged=sd:auto`）。挂载点是 vold 给的占位 UUID，读写正常 |
+| HDMI 输出 | v25 起可用：**RK628D 桥接**（VOP → 并行 RGB → RK628D → HDMI），1080p60，热插拔正常。受限于 RK3562 只有 vp0 一个视频端口，输出为**镜像模式**，不能双独立桌面 |
 | Wi-Fi（AIC8800DC / USB） | 可用：连网并访问外网，含防假死看门狗 |
 | RetroArch 简体中文 | 首次开机自动部署 |
 | 关机 / 断电 | 正常：修复了 `mmc_sd_shutdown` 空指针 panic（此前会导致关机失败、整夜耗光电） |
