@@ -36,7 +36,8 @@ AISLPC RG52 Mini，同为 RK3562），本仓库已改为只服务于 NGP45HT，
 | 蓝牙（实验） | `bt/`：mamaich `btvendor_aic.c` HCI 中继（含 8 条伪造响应）、编译产物 `.so`、shim 模块与部署脚本 |
 | 启动配置 | `boot/`：`extlinux.conf`（`FDT /rk3562-ngp45ht.dtb`，去掉 `fbcon=rotate:1`）+ `rk3562-ngp45ht.dtb` |
 | HDMI（RK628D） | 在同份 `rk3562-ngp45ht.dts` 里：`&i2c3` 挂 `rk628@50`、`&rgb` 接并行 RGB 端点、`&route_rgb` 连 `vp0_out_rgb`。两处易漏：`&rgb` 必须带 `pinctrl-0 = <&ngp_vo_pins>`（28 根 RGB/同步/时钟线切到 VO 功能），以及 `&i2c4 { status = "disabled" }` 要禁**控制器本身**——只禁 `&i2c4_rk628` 子节点时，`i2c4m0-xfer` 会占住 GPIO3_B6（即 RK628 的 enable 线），芯片永远不上电 |
-| 工具脚本 | `scripts/`：`build_kernel.sh`（内核 + DTB 一键构建）、`patch_system.sh`（免 root / 免 loop 的 ext4 离线注入） |
+| 内置应用 | `apps/`：`NgpIme.apk`（手柄拼音输入法 `com.llj.ngpime`）+ `LANGOS.apk`（游戏前端 `com.retrofront`），v27 起写进 `/system/app/`，刷完即用。来源与哈希见 `apps/README.md` |
+| 工具脚本 | `scripts/`：`build_kernel.sh`（内核 + DTB 一键构建）、`patch_system.sh`（免 root / 免 loop 的 ext4 离线注入）、`build_v27_apps.sh`（把内置应用与 `ngp-fixup.sh` 写进镜像，偏移从 GPT 现取） |
 
 成品 SD 卡镜像由 `~/rainject/build-v6.sh`（本地脚本）在官方 v1.10 镜像基础上合成，
 只替换 Fat / system / vendor 三个分区中的少量文件，其余字节级不动。
@@ -61,7 +62,7 @@ bash buildtv.sh nosync      # GammaOS Core（Android TV 版），产出 system.i
 |---|---|
 | 屏幕 / 手柄 DTB | 已就绪，随内核树一起构建 |
 | 内核与模块 | `Image`（5.10.226-rg52mini-ngp45ht）+ `rk3562-ngp45ht.dtb` 已构建 |
-| SD 卡镜像 | 已组装并三重校验，5.45 GB（当前 **v25**，xz 压缩后 1.69 GB，底座为上游 v1.10） |
+| SD 卡镜像 | 已组装并三重校验，5.45 GB（当前 **v27**，xz 压缩后 1.73 GB，底座为上游 v1.10） |
 | 启动、显示、输入、音频、RetroArch | 实机验证通过 |
 | 方向键 | 四向均正常（v15 改为统一走 HAT 轴，此前下/左/右被内核丢弃） |
 | 鼠标模式 | 改分辨率后落点自动跟随（v15）；重启 gammapad 改为等状态机，不再出现双光标（v16） |
@@ -69,6 +70,9 @@ bash buildtv.sh nosync      # GammaOS Core（Android TV 版），产出 system.i
 | 性能悬浮窗 | v22 起开机不自启，点桌面「NGP 悬浮窗开关」打开；没打开时 statd 空转（0.1% CPU），不再每秒 fork 一次 dumpsys |
 | 第二个 TF 卡槽 | v24 起可识别（fstab 补 `voldmanaged=sd:auto`）。挂载点是 vold 给的占位 UUID，读写正常 |
 | HDMI 输出 | v25 起可用：**RK628D 桥接**（VOP → 并行 RGB → RK628D → HDMI），1080p60，热插拔正常。受限于 RK3562 只有 vp0 一个视频端口，输出为**镜像模式**，不能双独立桌面 |
+| 游戏前端 | v27 起 **LANGOS**（`com.retrofront`）内置在 `/system/app/LANGOS`，默认桌面，替掉上游的 Daijishō。首次开机要用手柄选一次 ROM 目录，之后开机直接进游戏库 |
+| 中文输入法 | v27 起 **手柄拼音**（`com.llj.ngpime`）内置在 `/system/app/NgpIme`，默认 IME。10×4 QWERTY 网格全走 D-pad，离线词库约 12 万词条，无 INTERNET 权限 |
+| Nintendo 3DS | v26 起支持：`azahar-nano` + `AzaharSf` 在 system，38 MB 的 core 与 4 个 AdrenoTools hook 放启动分区 `/azahar`，开机脚本复制到 `/data` 并设 `persist.gammaos.azahar_nano.core`。只走 Vulkan |
 | Wi-Fi（AIC8800DC / USB） | 可用：连网并访问外网，含防假死看门狗 |
 | RetroArch 简体中文 | 首次开机自动部署 |
 | 关机 / 断电 | 正常：修复了 `mmc_sd_shutdown` 空指针 panic（此前会导致关机失败、整夜耗光电） |

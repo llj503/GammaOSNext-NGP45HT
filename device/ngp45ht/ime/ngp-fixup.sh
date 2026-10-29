@@ -1,7 +1,7 @@
 #!/system/bin/sh
-# NGP45HT 开机修正：让软键盘可用
+# NGP45HT 开机修正：默认桌面、默认输入法、显示方向等一次性收尾
 #
-# 背景（三层叠加，缺一不可）：
+# 输入法这块的背景（三层叠加，缺一不可）：
 #   1. 镜像默认把两个输入法包都禁用了 —— com.android.inputmethod.leanback
 #      和 com.liskovsoft.leankeyboard 都在 `pm list packages -d` 里，
 #      包被禁用 => IME 服务起不来 => InputMethodManager 报 mCurId=null /
@@ -11,23 +11,51 @@
 #      com.liskovsoft.leankeyboard —— 正好是启不来的那个。
 #   3. 该脚本自带逃生门：读 persist.rg52.ime，设了它就用它。
 #
-# 这里：① 启用 AOSP leanback 键盘；② 用 persist.rg52.ime 改掉强制目标；
-#       ③ 等它的 60 秒循环跑完，再收尾强制设置一次（双保险）。
+# 这里：① 启用内置的手柄拼音 ngp-pinyin 并设成默认；
+#       ② 用 persist.rg52.ime 改掉 rg52-ime.sh 的强制目标；
+#       ③ 等它的 60 秒循环跑完，再收尾设置一次（双保险）。
 
 TAG=ngp-fixup
-IME_ID=com.android.inputmethod.leanback/.service.LeanbackImeService
+
+# 内置输入法：手柄拼音 ngp-pinyin（见 github.com/llj503/ngp-pinyin-ime）。
+# 镜像里放在 /system/app/NgpIme/NgpIme.apk，刷完即存在，不需要用户再装。
+NGP_IME=com.llj.ngpime/.NgpImeService
+NGP_PKG=com.llj.ngpime
+AOSP_IME=com.android.inputmethod.leanback/.service.LeanbackImeService
+LEANKEY_IME=com.liskovsoft.leankeyboard/.ime.LeanbackImeService
+
+# 默认取 ngp-pinyin；persist.rg52.ime 是上游 rg52-ime.sh 的逃生门，
+# 用户显式设过就尊重它 —— 但设的包已经不存在时（比如换过输入法），
+# 继续沿用只会让 rg52-ime.sh 反复指向一个空组件，这时回落到 ngp-pinyin。
+IME_ID=$(getprop persist.rg52.ime)
+if [ -n "$IME_ID" ] && ! pm path "${IME_ID%%/*}" >/dev/null 2>&1; then
+    log -t $TAG "stale persist.rg52.ime=$IME_ID, falling back"
+    IME_ID=
+fi
+if [ -z "$IME_ID" ]; then
+    if pm path $NGP_PKG >/dev/null 2>&1; then
+        IME_ID=$NGP_IME
+    else
+        IME_ID=$AOSP_IME
+    fi
+fi
 
 log -t $TAG "start"
 
 # ⓪a 默认桌面：固定为 LANGOS（com.retrofront）。
 #
-# Daijishou 已从本机卸载，而 /system/bin/rg52-home.sh 守的是它 —— 包不在时
-# 只打一条 warning 就退出，等于没人兜底；万一 home 偏好丢了会停在选择框。
-# 这里每次开机都显式指定一次（幂等，成本一条 cmd）。
+# LANGOS 已内置在 /system/app/LANGOS，刷完即是默认桌面，不依赖 Daijishō。
+# 上游 /system/bin/rg52-home.sh 守的是 Daijishō —— 包不在时只打一条 warning
+# 就退出，等于没人兜底，home 偏好一丢就停在选择框。这里每次开机都显式指定
+# 一次（幂等，成本一条 cmd）。
 # 注意：必须确认包存在再设，指向不存在的组件会让 home 永久解析失败。
 if pm path com.retrofront >/dev/null 2>&1; then
     cmd package set-home-activity --user 0 com.retrofront/.NativeActivity >/dev/null 2>&1
     log -t $TAG "home -> com.retrofront/.NativeActivity"
+
+    # MANAGE_EXTERNAL_STORAGE 是 LANGOS 扫 ROM 目录用的。
+    # 内置到 /system/app 后它仍需要这条授权，否则读不到存储卡。
+    appops set com.retrofront MANAGE_EXTERNAL_STORAGE allow >/dev/null 2>&1
 fi
 
 # ⓪a-2 存储竞态：LANGOS 作为桌面会比 vold 先起，那时 TF2 还没挂上，
@@ -229,45 +257,29 @@ if pm path com.ngp.overlay >/dev/null 2>&1; then
 fi
 
 # ③ 等 rg52-ime.sh 的 60 秒循环跑完，再定终态输入法。
-#    优先讯飞输入法（com.iflytek.inputmethod，中文拼音，全屏候选，手柄/遥控器可用）；
-#    包不在才回落 leanback。
 #
-# 为什么是讯飞：
-#   - 系统自带的两个键盘（AOSP leanback、LeanKey）都只有英文，没有中文拼音；
-#   - 搜狗输入法TV版（com.sohu.inputmethod.sogou.tv）APKPure 上那份是残缺包，
-#     解出来 0 个 .so，IMEInterface.native_setup 直接 UnsatisfiedLinkError，
-#     键盘只能弹出一次（第一次是空壳）随后窗口退化成 [512,768][512,768]，已弃用；
-#   - 讯飞这份 lib/arm64-v8a 下有 48 个 .so，targetSdk 30，Android 14 正常跑。
-IFLY_IME=com.iflytek.inputmethod/.FlyIME
-IFLY_PKG=com.iflytek.inputmethod
+# 为什么必须是这个顺序：rg52-ime.sh 在 boot_completed 后每 2 秒刷一次
+# default_input_method、连刷 30 次，抢在它前面设没用。它读 persist.rg52.ime
+# 当目标（上面已经写好），所以循环跑完后终态就是我们要的那个 —— 这里再补
+# 一次是双保险，覆盖 rg52-ime.sh 因故没跑的情况。
+#
+# 系统自带的两个键盘（AOSP leanback、LeanKey）都只有英文，没有中文拼音，
+# 所以默认必须落在 ngp-pinyin 上。
 sleep 70
-if pm path $IFLY_PKG >/dev/null 2>&1; then
-    # 必须先写进 enabled_input_methods，否则 ime set 报
-    # "Unknown input method ... cannot be selected for user #0"
-    settings put secure enabled_input_methods "$IFLY_IME:$IME_ID" >/dev/null 2>&1
-    ime enable $IFLY_IME >/dev/null 2>&1
-    ime set $IFLY_IME >/dev/null 2>&1
 
-    # 讯飞首次启动会弹「服务和隐私条款概要」（PrivacyPolicyActivity）。
-    # 在用户点「同意」之前，这个引导会由 IME 自己在键盘窗口里再画一次，
-    # 把真实键盘整个盖掉 —— 表现就是"键盘弹出来了但看不见、点不了"。
-    # 脚本没法替用户点（该页是普通 Activity，只能人用手柄/触屏点「同意」），
-    # 所以这里不做任何自动操作，只在首次需要时把页面拉出来给用户点。
-    if [ ! -f /data/local/tmp/.iflytek_agreed ]; then
-        _cur=$(dumpsys window 2>/dev/null | grep -o 'mCurrentFocus=Window{[^}]*}' | head -n 1)
-        if echo "$_cur" | grep -qE 'com.retrofront|tvlauncher'; then
-            am start -n $IFLY_PKG/com.iflytek.inputmethod.wizard.PrivacyPolicyActivity \
-                >/dev/null 2>&1
-            log -t $TAG "iflytek: privacy wizard surfaced (need one-time tap)"
-        fi
-    fi
-fi
-if [ "$(settings get secure default_input_method 2>/dev/null)" != "$IFLY_IME" ]; then
-    ime enable $IME_ID >/dev/null 2>&1
-    ime set $IME_ID >/dev/null 2>&1
+# enabled_input_methods 必须先写全，否则 ime set 会报
+# "Unknown input method ... cannot be selected for user #0"。
+# 保留 leanback / LeanKey 是为了系统里还有可切换的英文键盘。
+settings put secure enabled_input_methods \
+    "$NGP_IME:$AOSP_IME:$LEANKEY_IME" >/dev/null 2>&1
+ime enable $NGP_IME >/dev/null 2>&1
+ime enable $AOSP_IME >/dev/null 2>&1
+
+if [ "$(settings get secure default_input_method 2>/dev/null)" != "$IME_ID" ]; then
+    ime set "$IME_ID" >/dev/null 2>&1
 fi
 
-log -t $TAG "done, method=$(settings get secure default_input_method 2>/dev/null)"
+log -t $TAG "ime -> $(settings get secure default_input_method 2>/dev/null)"
 
 # ④ 联网验证改用国内可达的探测点。
 #    默认是 connectivitycheck.gstatic.com/generate_204，国内连不上 =>

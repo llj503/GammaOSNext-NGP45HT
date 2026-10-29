@@ -100,6 +100,9 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v22 | + 性能悬浮窗开机不自启（`pm disable .BootReceiver`）、statd 改按需采样 | vendor |
 | v23 | + 方向锁改用 `wm fixed-to-user-rotation enabled`（修好 nano 正常但进游戏翻转） | vendor |
 | **v24** | **+ fstab 补上第二个 TF 卡槽的 `voldmanaged=sd:auto`（此前插卡完全不识别）** | **vendor** |
+| v25 | + HDMI 出图（RK628D：`&rgb` 的 vo-pins + 禁 `&i2c4` 控制器本身）、DTB 去掉上游遗留的 rg52mini | Fat |
+| v26 | + Nintendo 3DS：`azahar-nano`/`AzaharSf` 进 system，38 MB core 与 4 个 AdrenoTools hook 放 `/azahar`（p3）开机复制到 `/data`；nano 外壳升到 RG52mini v1.14；HDMI 音频 CPU DAI `&sai1`→`&sai2` | Fat、system |
+| **v27** | **+ 内置手柄拼音 IME（`com.llj.ngpime`）与 LANGOS 前端（`com.retrofront`）到 `/system/app`，默认 IME 与默认桌面都改过去；`ngp-fixup.sh` 输入法段从讯飞改为这个** | **system、vendor** |
 
 | 版本 | 交付镜像 | md5 |
 |---|---|---|
@@ -114,6 +117,9 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v22 | `GammaOSCore-NGP45HT-20261022-v22.img` | `66431dec1d6955c0bbf6f3fef3576778` |
 | v23 | `GammaOSCore-NGP45HT-20261022-v23.img` | `df01804797d4ada146c4e05789cce7f1` |
 | **v24** | `GammaOSCore-NGP45HT-20261026-v24.img` | `d31cb3477536585811e8c964672ec6b7` |
+| v25 | `GammaOSCore-NGP45HT-20261028-v25.img` | `5448ed938e32c7dee3bbf73741c06b7f` |
+| v26 | `GammaOSCore-NGP45HT-20261028-v26.img` | `9c77ed60e1add63c6f5fda217ebab777` |
+| **v27** | `GammaOSCore-NGP45HT-20261029-v27.img` | 见镜像目录 `SHA256SUMS-v27.txt` |
 
 均为 5,451,564,032 B。注入方法：免特权 `dd` 抽分区 → `debugfs -w -f` 命令文件注入 →
 `e2fsck -fn` → `dd` 写回 → 区域级 `cmp` 比对（除目标分区外零改动，GPT 未动）。
@@ -317,10 +323,16 @@ FAT 侧 `mtools mdir` + 80,994 簇零重叠；
 
 - **debugfs 的 `write` 不会覆盖已存在的文件**：报 `Ext2 file already exists` 后**直接跳过不报错退出**，
   必须 `rm <目标>` 再 `write`。漏掉这一步时，build.prop / wifi_pick.sh 的改动会静默丢失。
-- 新建的 inode 没有 SELinux 标签，用 `ea_set <路径> security.selinux u:object_r:system_file:s0`
-  补上；**值必须以 NUL 结尾**（与镜像里原始值一致），用 `printf '...\000\n'` 生成命令文件即可。
+- 新建的 inode 没有 SELinux 标签，必须补：system 下 `u:object_r:system_file:s0`，
+  **vendor 下 `u:object_r:vendor_file:s0`**（此前记成"vendor 不必补"是错的 ——
+  `/vendor/bin/ngp-fixup.sh`、`ngp-statd` 实测都是 `vendor_file:s0`）。
+  值必须以 NUL 结尾，与镜像里原生一致（26 字节）。**`\000` 直接写进 debugfs 命令文件不管用**
+  （它按行读，NUL 会被吃掉，落进去是 25 字节），要用 `ea_set -f <值文件>`，值文件用
+  `printf 'u:object_r:system_file:s0\0'` 生成。
+- 漏了标签的后果不是必然崩：实测 v26 里 `AzaharSf` 是 `unlabeled` 也能被 PackageManager
+  扫到并正常运行，但那是踩对了不是保证，`ls -Z` 一看就能区分。
 - `debugfs -R "ls -l <文件路径>"` 对**单文件**无效（`Ext2 inode is not a directory`），
   断言里要列目录再匹配。
-- vendor 分区默认无 SELinux 标签（与 system 不同），不必补。
+- vendor 分区同样有标签，只是域不同（`vendor_file` / `vendor_configs_file`）。
 - 非特权环境下第三方校验：FAT 用 **mtools**（`mdir` / `mcopy`），ext4 用 **debugfs** + `e2fsck -fn`；
   本机没有 7z。
