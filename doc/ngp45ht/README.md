@@ -104,6 +104,7 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v26 | + Nintendo 3DS：`azahar-nano`/`AzaharSf` 进 system，38 MB core 与 4 个 AdrenoTools hook 放 `/azahar`（p3）开机复制到 `/data`；nano 外壳升到 RG52mini v1.14；HDMI 音频 CPU DAI `&sai1`→`&sai2` | Fat、system |
 | v27 | + 内置手柄拼音 IME（`com.llj.ngpime`）与 LANGOS 前端（`com.retrofront`）到 `/system/app`，默认 IME 与默认桌面都改过去；`ngp-fixup.sh` 输入法段从讯飞改为这个 | system、vendor |
 | **v28** | **+ vendor 分区 254→575 MiB（cache 384→64 MiB），3DS 的 38 MB core 与 4 个 hook 从 p3 搬进 `/vendor/azahar`，p3 腾出 36 MB。setup 脚本改为按大小判断，升级时会换掉 /data 里的旧 core** | **GPT、cache、vendor、system** |
+| **v29** | **从 `/system/etc/gammaos/apps.list` 删掉 Daijishō，并删除 `/system/etc/daijisho/`（39 MB）与 `daijisho.tar.zst`（9.7 MB）。system 空闲 4.6 → 51.7 MB** | **system** |
 
 | 版本 | 交付镜像 | md5 |
 |---|---|---|
@@ -121,7 +122,8 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v25 | `GammaOSCore-NGP45HT-20261028-v25.img` | `5448ed938e32c7dee3bbf73741c06b7f` |
 | v26 | `GammaOSCore-NGP45HT-20261028-v26.img` | `9c77ed60e1add63c6f5fda217ebab777` |
 | v27 | `GammaOSCore-NGP45HT-20261029-v27.img` | `91dc1bb12ab6644bf49046b632f1f24a` |
-| **v28** | `GammaOSCore-NGP45HT-20261029-v28.img` | 见镜像目录 `SHA256SUMS-v28.txt` |
+| v28 | `GammaOSCore-NGP45HT-20261029-v28.img` | `f77712d14119a3bdd96a9fecbf36e0c5` |
+| **v29** | `GammaOSCore-NGP45HT-20261029-v29.img` | 见镜像目录 `SHA256SUMS-v29.txt` |
 
 均为 5,451,564,032 B。注入方法：免特权 `dd` 抽分区 → `debugfs -w -f` 命令文件注入 →
 `e2fsck -fn` → `dd` 写回 → 区域级 `cmp` 比对（除目标分区外零改动，GPT 未动）。
@@ -357,3 +359,39 @@ FAT 侧 `mtools mdir` + 80,994 簇零重叠；
   拿 v27 的表去判差异范围，新增的那段会被误报成"分区外 344,064 B"。
   要取两版分区表的**并集**再判。
 - GPT 记账区在镜像**最后 34 个扇区**（不是 33）：`[size-34*512, size)`。
+
+### Daijishō 是首次开机装的，不在 /system/app 里（v29）
+
+排查"刷完机为什么还有 Daijishō"时，`ls /system/app` 和 `/system/priv-app` 都是空的，
+容易误判成镜像里没有它。实际上它的安装链路是：
+
+```
+/system/bin/setup.sh 的 install_apps()
+  → 读 /system/etc/gammaos/apps.list
+  → 命中 "Daijisho|com.magneticchen.daijishou|/system/etc/daijisho||post_daijisho"
+  → install_package 装 /system/etc/daijisho/ 下的 base.apk + 2 个 split（39 MB）
+  → 跑 post_daijisho：extract_archive daijisho.tar.zst（9.7 MB）+ own_app_data
+                       + cmd package set-home-activity → 把默认 home 设成 Daijishō
+```
+
+最后一步会和 `ngp-fixup.sh` 抢 home：setup.sh 跑得早，ngp-fixup 在
+`boot_completed=1` 后才跑，正常时序下 LANGOS 最终能拿到 —— 但 Daijishō 的包
+实实在在装在 /data 里，用户看得见。
+
+要彻底去掉，三处一起删：
+
+1. `apps.list` 里那一行（否则 setup.sh 照装不误）
+2. `/system/etc/daijisho/`（base + 2 split）
+3. `/system/etc/daijisho.tar.zst`
+
+`setup.sh` 里的 `post_daijisho()` 函数体留着无害 —— `install_apps` 是按清单遍历的，
+清单里没这行就不会调用。不必改 setup.sh。
+
+`/system/bin/rg52-home.sh` 里 `PKG=com.magneticchen.daijishou` 也可以留着：
+它是"home 没解析出来时兜底"，包不存在时会打一条 warning 退出（有 `pm path` 判断）。
+
+**顺带腾出 47 MB**：这一改把 system 空闲从 4.6 MB 抬到 51.7 MB，比 vendor 扩容
+的收益还直接。
+
+**注意 /data 残留**：整卡重刷 userdata 会清空，Daijishō 彻底没了；但若只替换分区，
+`/data/app` 里那份还在，要手动 `pm uninstall com.magneticchen.daijishou`。
