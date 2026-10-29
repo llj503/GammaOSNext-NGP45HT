@@ -1,0 +1,90 @@
+# 3DS on NGP45HT: azahar-nano (GammaOS nano host) + AzaharSf (Android host).
+#
+# The core (~38 MB) and the 4 AdrenoTools hooks live in /vendor/azahar (p5) and
+# are staged into /data at boot:
+# /system has under 5 MB free, and the frontend needs the hooks sitting in the
+# core's own directory. p5 was grown 254 MiB -> 575 MiB in v28 so the core fits
+# inside an ext4 system partition instead of the FAT boot partition.
+# See azahar-nano-setup.sh for the details.
+
+on post-fs-data
+    exec - root root -- /system/bin/sh /system/bin/azahar-nano-setup.sh
+
+service azahar-nano /system/bin/azahar-nano
+    class main
+    user root
+    group root graphics input system media_rw sdcard_rw everybody external_storage package_info audio readproc inet net_bw_stats
+    capabilities SYS_NICE IPC_LOCK SYS_RESOURCE DAC_READ_SEARCH DAC_OVERRIDE CHOWN SYS_ADMIN
+    disabled
+    oneshot
+    ioprio rt 0
+    rlimit rtprio 99 99
+    rlimit memlock 536870912 536870912
+    task_profiles MaxPerformance
+    oom_score_adjust 0
+
+# Start trigger: gammaos-nano writes the ROM path to
+# /data/system/nano_azahar_nano_rom.txt, then sets this property to 1.
+# Every start clears sys.gammaos.azahar_nano.quit - a session killed outright
+# (the low memory killer) never took its quit, and the next one would have read
+# it at once.
+on property:sys.gammaos.azahar_nano.start=1
+    exec - root root -- /system/bin/sh /system/bin/azahar-nano-setup.sh
+    setprop sys.gammaos.azahar_nano.start 0
+    setprop sys.gammaos.azahar_nano.host nano
+    setprop sys.gammaos.azahar_nano.quit 0
+    setprop sys.gammaos.azahar_nano.session_done 0
+    setprop sys.gammaos.azahar_nano.session 1
+    stop gammaos-nano
+    stop gammaos-nano-overlay
+    start azahar-nano
+
+# Debug start without touching the home (SurfaceFlinger backend only).
+on property:sys.gammaos.azahar_nano.start_sf=1
+    exec - root root -- /system/bin/sh /system/bin/azahar-nano-setup.sh
+    setprop sys.gammaos.azahar_nano.start_sf 0
+    setprop sys.gammaos.azahar_nano.host nano
+    setprop sys.gammaos.azahar_nano.quit 0
+    setprop sys.gammaos.azahar_nano.session_done 0
+    setprop sys.gammaos.azahar_nano.session 1
+    start azahar-nano
+
+# Start from normal Android: Daijishō launches the AzaharSf host activity, which
+# writes the ROM path and sets this. The home is not touched (SurfaceFlinger
+# keeps the panel, the session uses the SurfaceFlinger backend) and nothing is
+# brought up when the session ends: AzaharSf finishes and the launcher under it
+# comes back.
+on property:sys.gammaos.azahar_nano.start_app=1
+    exec - root root -- /system/bin/sh /system/bin/azahar-nano-setup.sh
+    setprop sys.gammaos.azahar_nano.start_app 0
+    setprop sys.gammaos.azahar_nano.host app
+    setprop sys.gammaos.azahar_nano.quit 0
+    setprop sys.gammaos.azahar_nano.session_done 0
+    setprop sys.gammaos.azahar_nano.session 1
+    start azahar-nano
+
+# The service died without reporting (init's stop sends SIGKILL, a crash the
+# handler could not catch, an OOM kill): release SurfaceFlinger and bring the
+# home back the same way a normal exit does.
+on property:init.svc.azahar-nano=stopped && property:sys.gammaos.azahar_nano.session=1
+    setprop sys.gammaos.azahar_nano.session 0
+    setprop sys.gammaos.nano.drm_active 0
+    setprop sys.gammaos.azahar_nano.session_done 1
+
+# The home comes back only after a session nano started (host=nano); after one
+# from Android (host=app) the launcher is already there under AzaharSf.
+on property:sys.gammaos.azahar_nano.session_done=1 && property:persist.gammaos.nano.drm_home_resume=1 && property:sys.gammaos.azahar_nano.host=nano
+    setprop sys.gammaos.nano.force_drm 1
+
+on property:sys.gammaos.azahar_nano.session_done=1 && property:sys.gammaos.azahar_nano.host=nano
+    setprop service.bootanim.exit 0
+    start gammaos-nano
+
+on property:sys.gammaos.azahar_nano.session_done=1
+    setprop sys.gammaos.azahar_nano.session_done 0
+    setprop sys.gammaos.azahar_nano.session 0
+
+# No azahar-seed service here. NGP45HT ships the Leanback TV launcher, not
+# Daijishō, so there is no com.magneticchen.daijishou database to seed. The
+# gammaos-nano XMB shell discovers ROMs itself by scanning /storage/emulated,
+# which is where the "Nintendo 3DS" system comes from on this image.

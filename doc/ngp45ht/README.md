@@ -102,7 +102,8 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | **v24** | **+ fstab 补上第二个 TF 卡槽的 `voldmanaged=sd:auto`（此前插卡完全不识别）** | **vendor** |
 | v25 | + HDMI 出图（RK628D：`&rgb` 的 vo-pins + 禁 `&i2c4` 控制器本身）、DTB 去掉上游遗留的 rg52mini | Fat |
 | v26 | + Nintendo 3DS：`azahar-nano`/`AzaharSf` 进 system，38 MB core 与 4 个 AdrenoTools hook 放 `/azahar`（p3）开机复制到 `/data`；nano 外壳升到 RG52mini v1.14；HDMI 音频 CPU DAI `&sai1`→`&sai2` | Fat、system |
-| **v27** | **+ 内置手柄拼音 IME（`com.llj.ngpime`）与 LANGOS 前端（`com.retrofront`）到 `/system/app`，默认 IME 与默认桌面都改过去；`ngp-fixup.sh` 输入法段从讯飞改为这个** | **system、vendor** |
+| v27 | + 内置手柄拼音 IME（`com.llj.ngpime`）与 LANGOS 前端（`com.retrofront`）到 `/system/app`，默认 IME 与默认桌面都改过去；`ngp-fixup.sh` 输入法段从讯飞改为这个 | system、vendor |
+| **v28** | **+ vendor 分区 254→575 MiB（cache 384→64 MiB），3DS 的 38 MB core 与 4 个 hook 从 p3 搬进 `/vendor/azahar`，p3 腾出 36 MB。setup 脚本改为按大小判断，升级时会换掉 /data 里的旧 core** | **GPT、cache、vendor、system** |
 
 | 版本 | 交付镜像 | md5 |
 |---|---|---|
@@ -119,7 +120,8 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | **v24** | `GammaOSCore-NGP45HT-20261026-v24.img` | `d31cb3477536585811e8c964672ec6b7` |
 | v25 | `GammaOSCore-NGP45HT-20261028-v25.img` | `5448ed938e32c7dee3bbf73741c06b7f` |
 | v26 | `GammaOSCore-NGP45HT-20261028-v26.img` | `9c77ed60e1add63c6f5fda217ebab777` |
-| **v27** | `GammaOSCore-NGP45HT-20261029-v27.img` | 见镜像目录 `SHA256SUMS-v27.txt` |
+| v27 | `GammaOSCore-NGP45HT-20261029-v27.img` | `91dc1bb12ab6644bf49046b632f1f24a` |
+| **v28** | `GammaOSCore-NGP45HT-20261029-v28.img` | 见镜像目录 `SHA256SUMS-v28.txt` |
 
 均为 5,451,564,032 B。注入方法：免特权 `dd` 抽分区 → `debugfs -w -f` 命令文件注入 →
 `e2fsck -fn` → `dd` 写回 → 区域级 `cmp` 比对（除目标分区外零改动，GPT 未动）。
@@ -336,3 +338,22 @@ FAT 侧 `mtools mdir` + 80,994 簇零重叠；
 - vendor 分区同样有标签，只是域不同（`vendor_file` / `vendor_configs_file`）。
 - 非特权环境下第三方校验：FAT 用 **mtools**（`mdir` / `mcopy`），ext4 用 **debugfs** + `e2fsck -fn`；
   本机没有 7z。
+
+### 改 GPT 分区大小（v28）
+
+- **`sgdisk` 的 `-d` 和 `-n` 不能写在同一条命令里**：会报
+  `Could not change partition N's type code to 8300` 然后整条回滚（`Error encountered; not saving changes.`）。
+  必须分三步：`-d N` → `-n N:start:end` → `-t/-u/-c`。
+- 重建分区前先用 `sgdisk -i N` 取原 UUID，重建后 `-u N:<UUID>` 写回。fstab 走
+  by-name 不看 UUID，但刷机工具和某些脚本会看，丢了对不上号。
+- 想让 p5 变大而 p6 缩小、p7 之后不动，两个尺寸必须严格配平：
+  `新p5 + 新p6 = 原p5 + 原p6`。本例 1177600 + 131072 = 521576 + 786432 = 1308008。
+  新 cache 起点选在 2048 边界（8378368 = 4091×2048）才能既对齐又不留空洞。
+- **cache 是空的就别搬**（只有 lost+found）：直接 `dd` 清零 + `mke2fs -E offset=`
+  重建，比 dd 搬 384 MB 快得多。UUID 用 `-U` 指定回原值。
+- **`resize2fs` 不支持 `img?offset=N` 语法**（debugfs 支持，它不支持）。
+  必须 `dd` 抽出分区 → `e2fsck -f` → `resize2fs` → `e2fsck -f` → `dd` 写回。
+- **改完分区表，范围校验不能只用旧表**：v28 的 p5 比 v27 宽 320 MiB，
+  拿 v27 的表去判差异范围，新增的那段会被误报成"分区外 344,064 B"。
+  要取两版分区表的**并集**再判。
+- GPT 记账区在镜像**最后 34 个扇区**（不是 33）：`[size-34*512, size)`。
