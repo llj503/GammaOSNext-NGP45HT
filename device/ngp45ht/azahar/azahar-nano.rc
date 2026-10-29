@@ -31,6 +31,7 @@ service azahar-nano /system/bin/azahar-nano
 on property:sys.gammaos.azahar_nano.start=1
     exec - root root -- /system/bin/sh /system/bin/azahar-nano-setup.sh
     setprop sys.gammaos.azahar_nano.start 0
+    setprop sys.gammaos.azahar_nano.from_app 0
     setprop sys.gammaos.azahar_nano.host nano
     setprop sys.gammaos.azahar_nano.quit 0
     setprop sys.gammaos.azahar_nano.session_done 0
@@ -43,6 +44,7 @@ on property:sys.gammaos.azahar_nano.start=1
 on property:sys.gammaos.azahar_nano.start_sf=1
     exec - root root -- /system/bin/sh /system/bin/azahar-nano-setup.sh
     setprop sys.gammaos.azahar_nano.start_sf 0
+    setprop sys.gammaos.azahar_nano.from_app 0
     setprop sys.gammaos.azahar_nano.host nano
     setprop sys.gammaos.azahar_nano.quit 0
     setprop sys.gammaos.azahar_nano.session_done 0
@@ -57,7 +59,8 @@ on property:sys.gammaos.azahar_nano.start_sf=1
 on property:sys.gammaos.azahar_nano.start_app=1
     exec - root root -- /system/bin/sh /system/bin/azahar-nano-setup.sh
     setprop sys.gammaos.azahar_nano.start_app 0
-    setprop sys.gammaos.azahar_nano.host app
+    setprop sys.gammaos.azahar_nano.from_app 1
+    setprop sys.gammaos.azahar_nano.host nano
     setprop sys.gammaos.azahar_nano.quit 0
     setprop sys.gammaos.azahar_nano.session_done 0
     setprop sys.gammaos.azahar_nano.session 1
@@ -73,10 +76,10 @@ on property:init.svc.azahar-nano=stopped && property:sys.gammaos.azahar_nano.ses
 
 # The home comes back only after a session nano started (host=nano); after one
 # from Android (host=app) the launcher is already there under AzaharSf.
-on property:sys.gammaos.azahar_nano.session_done=1 && property:persist.gammaos.nano.drm_home_resume=1 && property:sys.gammaos.azahar_nano.host=nano
+on property:sys.gammaos.azahar_nano.session_done=1 && property:persist.gammaos.nano.drm_home_resume=1 && property:sys.gammaos.azahar_nano.host=nano && property:sys.gammaos.azahar_nano.from_app=0
     setprop sys.gammaos.nano.force_drm 1
 
-on property:sys.gammaos.azahar_nano.session_done=1 && property:sys.gammaos.azahar_nano.host=nano
+on property:sys.gammaos.azahar_nano.session_done=1 && property:sys.gammaos.azahar_nano.host=nano && property:sys.gammaos.azahar_nano.from_app=0
     setprop service.bootanim.exit 0
     start gammaos-nano
 

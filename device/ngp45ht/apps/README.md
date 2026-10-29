@@ -5,7 +5,10 @@
 | 文件 | 包名 | 入口 | 大小 | md5 |
 | --- | --- | --- | --- | --- |
 | `NgpIme.apk` | `com.llj.ngpime` | `com.llj.ngpime/.NgpImeService` | 1,131,101 | `5cbaf7a244610c150970881e45415ef6` |
-| `LANGOS.apk` | `com.retrofront` | `com.retrofront/.NativeActivity` | 3,913,400 | `3245d228852d76e0db1005523ce1900c` |
+| `LANGOS.apk` | `com.retrofront` | `com.retrofront/.NativeActivity` | 3,916,420 | `c00695275239213d18270a605055f0d0` |
+
+`langos.jks` 是用来重签 LANGOS 的自签名密钥库（alias `langos`，口令都是 `ngp45ht`）。
+**换签名后必须整卡刷入** —— 详见 `../langos/README.md` 的重打包一节。
 
 ## NgpIme —— 手柄拼音输入法
 
@@ -18,9 +21,13 @@ v0.1.0 release，没改过。它是手柄优先的离线拼音输入法，10×4 
 
 ## LANGOS —— 游戏前端
 
-`com.retrofront`，3.0 带电池修正版（`LANGOS-3.0-battfix.apk`）。
+`com.retrofront`，基于 3.0 带电池修正版（`LANGOS-3.0-battfix.apk`）改了 3DS 的启动目标。
 它同时声明了 `LAUNCHER` / `LEANBACK_LAUNCHER` / `HOME`，可以直接当桌面，
 替掉上游镜像默认的 Daijishō。
+
+**v30 起这个 APK 不是原版了**：把 3DS 的独立模拟器从 Lime3DS 改成 AzaharSf，
+具体改动与重打包方法见 `../langos/README.md`。原版 APK 的签名是
+`CN=LANGOS Patch`，私钥不可得，所以改动版用 `langos.jks` 重签。
 
 `ngp-fixup.sh` 每次开机做两件事：把 home 固定到它，以及给它
 `MANAGE_EXTERNAL_STORAGE`（扫 ROM 目录要用，内置到 system 后这条授权仍然要单独给）。
@@ -45,8 +52,13 @@ LANGOS 会把 `ROMs`、`RetroArch` 这些一级子目录各自当成一个"平�
 而不是进 `ROMs` 里按机种分类。
 
 `ngp-fixup.sh` 里另有一段处理它和 vold 的竞态：LANGOS 比 vold 先起时读不到
-rom_root，会误弹选择框（开机必现）；脚本等 public 卷挂载完成后，如果前台仍是
+rom_root，会误弹选择框（开机必现）；脚本等 public 卷挂载完成，如果前台仍是
 选择页就重启一次 LANGOS。
+
+> 另外，`adb install` 覆盖装过 LANGOS（或 `pm uninstall --user 0` 再
+> `install-existing`）会把 SAF 的持久化授权一起清掉 —— `/data/system/urigrants.xml`
+> 变空，`saf_prefs.xml` 里的 tree URI 还在但没权限了，于是又弹选择框。
+> 授权没法用 adb 直接补，只能手柄再选一次。
 
 ## 重新取这两个 APK
 
@@ -55,5 +67,5 @@ rom_root，会误弹选择框（开机必现）；脚本等 public 卷挂载完�
 curl -L -o NgpIme.apk \
   https://github.com/llj503/ngp-pinyin-ime/releases/download/v0.1.0/ngp-ime-0.1.0.apk
 
-# LANGOS：本仓库 apps/ 下这份就是镜像里用的，md5 见上表
+# LANGOS：本仓库 apps/ 下这份就是镜像里用的（已改 3DS 目标），md5 见上表
 ```

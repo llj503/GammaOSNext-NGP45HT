@@ -105,6 +105,7 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v27 | + 内置手柄拼音 IME（`com.llj.ngpime`）与 LANGOS 前端（`com.retrofront`）到 `/system/app`，默认 IME 与默认桌面都改过去；`ngp-fixup.sh` 输入法段从讯飞改为这个 | system、vendor |
 | **v28** | **+ vendor 分区 254→575 MiB（cache 384→64 MiB），3DS 的 38 MB core 与 4 个 hook 从 p3 搬进 `/vendor/azahar`，p3 腾出 36 MB。setup 脚本改为按大小判断，升级时会换掉 /data 里的旧 core** | **GPT、cache、vendor、system** |
 | **v29** | **从 `/system/etc/gammaos/apps.list` 删掉 Daijishō，并删除 `/system/etc/daijisho/`（39 MB）与 `daijisho.tar.zst`（9.7 MB）。system 空闲 4.6 → 51.7 MB** | **system** |
+| **v30** | **打通 LANGOS → 3DS：LANGOS 的 3ds 独立模拟器从 Lime3DS 改成 AzaharSf（改 smali 重签）；`azahar-nano.rc` 让 `start_app` 也走 DRM 后端（SurfaceFlinger 后端层建得出来但没有 buffer，全黑），加 `from_app` 标记区分会话结束后是否回 nano 外壳** | **system** |
 
 | 版本 | 交付镜像 | md5 |
 |---|---|---|
@@ -123,7 +124,8 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v26 | `GammaOSCore-NGP45HT-20261028-v26.img` | `9c77ed60e1add63c6f5fda217ebab777` |
 | v27 | `GammaOSCore-NGP45HT-20261029-v27.img` | `91dc1bb12ab6644bf49046b632f1f24a` |
 | v28 | `GammaOSCore-NGP45HT-20261029-v28.img` | `f77712d14119a3bdd96a9fecbf36e0c5` |
-| **v29** | `GammaOSCore-NGP45HT-20261029-v29.img` | 见镜像目录 `SHA256SUMS-v29.txt` |
+| v29 | `GammaOSCore-NGP45HT-20261029-v29.img` | `ec966ed086ac853eaa60d75e3da81019` |
+| **v30** | `GammaOSCore-NGP45HT-20261029-v30.img` | 见镜像目录 `SHA256SUMS-v30.txt` |
 
 均为 5,451,564,032 B。注入方法：免特权 `dd` 抽分区 → `debugfs -w -f` 命令文件注入 →
 `e2fsck -fn` → `dd` 写回 → 区域级 `cmp` 比对（除目标分区外零改动，GPT 未动）。
@@ -395,3 +397,73 @@ FAT 侧 `mtools mdir` + 80,994 簇零重叠；
 
 **注意 /data 残留**：整卡重刷 userdata 会清空，Daijishō 彻底没了；但若只替换分区，
 `/data/app` 里那份还在，要手动 `pm uninstall com.magneticchen.daijishou`。
+
+### 改第三方 APK 打通 LANGOS → 3DS（v30）
+
+LANGOS 对每个平台硬编码一个"独立模拟器包名"，3DS 原本是
+`io.github.lime3ds.android`。这个包没装，`startGame` 就回落到 RetroArch 核心 ——
+**而且不检查核心文件是否存在**，`citra_libretro_android.so` 根本不在 RA 的 152 个核心里，
+于是黑屏 + ANR。日志长这样：
+
+```
+VagaRetro: startGame: standaloneEmulator=io.github.lime3ds.android
+VagaRetro: startGame: standalone emulator not installed, falling back to RA core
+VagaRetro: startGame: corePath=.../cores/citra_libretro_android.so
+RetroArch: [ENV] Libretro path: ".../citra_libretro_android.so"
+Window ... is unresponsive: Waited 5004ms for KeyEvent
+```
+
+要改的地方只有两处（`smali_classes3/com/retrofront/NativeActivity.smali`）：
+
+1. `getStandaloneEmulator` 里 `:cond_4` 的 `"io.github.lime3ds.android"`
+   → `"com.gammaos.azaharsf"`；
+2. `launchWithStandaloneEmulator` 的 `:cond_0` 插入一段 Azahar 专用分支。
+
+第 2 点**不要**沿用原来的 citra 分支：那条路用
+`FileProvider.getUriForFile(..., "com.retrofront.fileprovider", file)` 构造 **content:// URI**，
+而 AzaharSf 的 `romPath()` 只接受 `file` scheme，content:// 会被静默忽略。
+AzaharSf 的判定顺序是 `getStringExtra("ROM")` 优先，所以直接
+`putExtra("ROM", gameFile.getAbsolutePath())` 最省事 —— 同时绕开 targetSdk 34 的
+`FileUriExposedException`。
+
+#### 重签之后刷不进旧卡
+
+原 APK 签名是 `CN=LANGOS Patch`，私钥不可得，只能重签。重签后：
+
+- `adb install -r` 报 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`；
+- `pm uninstall --user 0 com.retrofront` 看着 Success，但 `pm path` 只是变空，
+  **system 分区上的包仍在**，签名检查照拦；
+- `pm install` 再装还是同一个错。
+
+所以换签名的 APK **只能整卡重刷**（userdata 一起清）。顺带一提，`pm uninstall --user 0`
++ `install-existing` 会把 SAF 的持久化授权清掉（`/data/system/urigrants.xml` 变空），
+LANGOS 开机又弹目录选择框，得手柄再选一次。
+
+#### apktool 够用，不需要完整 SDK
+
+本机没有 Android SDK，但 apktool 2.9.3 的 fat jar 自带 aapt2，只缺
+`zipalign` / `apksigner`，从 `build-tools_r34-linux.zip` 取两个二进制即可
+（`platform-34_r03.zip` 那个 URL 已经失效，下不到 `android.jar`，但也不需要）。
+maven 上的 baksmali 2.5.2 是 thin jar，没有主清单，跑不起来 —— 别在这上面浪费时间。
+
+#### 改完 LANGOS 仍然黑屏，是因为渲染后端选错
+
+AzaharSf 走 SurfaceFlinger 后端时，`azahar-nano#1477` 层在 `dumpsys SurfaceFlinger`
+的层树里能看到，但 HWC layers 表里只有 AzaharSf 自己那一层 —— **该层始终没有 buffer**，
+游戏在跑 53 fps，屏幕全黑。改走 DRM 后端后立刻正常：
+
+```
+azahar-nano: DRM backend up: 1 panel(s)
+azahar-nano: DRM: crtc 71 flips=1780 drops=48 ... commit->flip avg 12.6 max 17.1 ms
+azahar-nano: perf: game 55.5 fps, system 54.5 fps, speed 93%
+```
+
+**注意此时 `screencap` 是黑的** —— 它读 SurfaceFlinger，而 DRM 直出绕过了合成器。
+判断有没有出图要看 `DRM: crtc ... flips=` 和 `perf: game ... fps`，不要看截图。
+
+#### 另一个伪装成"模拟器坏了"的坑
+
+`init.svc.audioserver` 是 `stopped` 时，`azahar-nano` 主线程会卡在
+`AudioSystem::getService` 无限重试（每秒一条 `waiting for media.audio_flinger`），
+**一帧都不渲染**，日志停在 `Audio SetSink type 0 device 'Auto'`。
+`service list | grep media.audio_flinger` 能确认；`start audioserver` 后恢复。
