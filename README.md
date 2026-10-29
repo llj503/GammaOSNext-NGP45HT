@@ -65,7 +65,8 @@ bash buildtv.sh nosync      # GammaOS Core（Android TV 版），产出 system.i
 |---|---|
 | 屏幕 / 手柄 DTB | 已就绪，随内核树一起构建 |
 | 内核与模块 | `Image`（5.10.226-rg52mini-ngp45ht）+ `rk3562-ngp45ht.dtb` 已构建 |
-| SD 卡镜像 | 已组装并三重校验，5.45 GB（当前 **v30**，xz 压缩后约 1.7 GB，底座为上游 v1.10） |
+| SD 卡镜像 | 已组装并三重校验，5.45 GB（当前 **v30**，xz 压缩后 1.68 GB，底座为上游 v1.10） |
+| 镜像下载 | GitHub Releases → [`v30-ngp45ht-20261029`](https://github.com/llj503/GammaOSNext-NGP45HT/releases/tag/v30-ngp45ht-20261029)（xz + 校验清单）；国内镜像见百度盘 `/NGP45HT` |
 | 启动、显示、输入、音频、RetroArch | 实机验证通过 |
 | 方向键 | 四向均正常（v15 改为统一走 HAT 轴，此前下/左/右被内核丢弃） |
 | 鼠标模式 | 改分辨率后落点自动跟随（v15）；重启 gammapad 改为等状态机，不再出现双光标（v16） |

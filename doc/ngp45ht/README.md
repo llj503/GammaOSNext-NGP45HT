@@ -125,7 +125,7 @@ LOCALVERSION=`-ngp45ht`。构建产物 Image 30,136,328 B、DTB 149,224 B。
 | v27 | `GammaOSCore-NGP45HT-20261029-v27.img` | `91dc1bb12ab6644bf49046b632f1f24a` |
 | v28 | `GammaOSCore-NGP45HT-20261029-v28.img` | `f77712d14119a3bdd96a9fecbf36e0c5` |
 | v29 | `GammaOSCore-NGP45HT-20261029-v29.img` | `ec966ed086ac853eaa60d75e3da81019` |
-| **v30** | `GammaOSCore-NGP45HT-20261029-v30.img` | 见镜像目录 `SHA256SUMS-v30.txt` |
+| **v30** | `GammaOSCore-NGP45HT-20261029-v30.img` | `699c96295b610e3d525a8b626b11a05e` |
 
 均为 5,451,564,032 B。注入方法：免特权 `dd` 抽分区 → `debugfs -w -f` 命令文件注入 →
 `e2fsck -fn` → `dd` 写回 → 区域级 `cmp` 比对（除目标分区外零改动，GPT 未动）。
