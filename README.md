@@ -39,6 +39,7 @@ AISLPC RG52 Mini，同为 RK3562），本仓库已改为只服务于 NGP45HT，
 | 内置应用 | `apps/`：`NgpIme.apk`（手柄拼音输入法 `com.llj.ngpime`）+ `LANGOS.apk`（游戏前端 `com.retrofront`），v27 起写进 `/system/app/`，刷完即用。来源与哈希见 `apps/README.md` |
 | 首次开机装应用 | `gammaos/apps.list` —— GammaOS `setup.sh` 的安装清单。v29 起删掉 Daijishō 那行，同时删掉 `/system/etc/daijisho/`（39 MB）与 `daijisho.tar.zst`（9.7 MB），system 空闲 4.6 → 51.7 MB |
 | 前端 LANGOS | `langos/`：平台识别规则与 3DS 启动链路。**3DS 的 ROM 目录必须叫 `3ds`（不是 EmuELEC 的 `n3ds`）**，否则卡片不显示。v30 起 APK 已改过（3DS → AzaharSf），改动点、重打包与签名方法见该目录 README |
+| nano 前端 | `nano/`：gammaos-nano（XMB 前端）的 ROM 来源。**扫描硬编码 `/data/media/0/ROMs/`，启动 3DS 时传的路径是 `/sdcard/ROMs/`**，两者都在 FUSE 上、root 读不了文件，靠 `ngp-fixup.sh` 第 ⑤⑥ 段各 bind 一层 vfat 解决（符号链接被 FUSE 拒绝，`Function not implemented`）。内置的 210 个示例游戏备份在 `ROMs.builtin`。详见该目录 README |
 | 3DS | `azahar/`：`azahar-nano-setup.sh` + `azahar-nano.rc`。core 与 4 个 AdrenoTools hook 在 `/vendor/azahar/`（v28 起），开机复制到 `/data`。**只有 DRM 后端能出图，SurfaceFlinger 后端是黑屏**，v30 起两个入口都走 DRM。二进制来源与踩坑见 `azahar/README.md` |
 | 工具脚本 | `scripts/`：`build_kernel.sh`（内核 + DTB 一键构建）、`patch_system.sh`（免 root / 免 loop 的 ext4 离线注入）、`build_v27_apps.sh`（内置应用与 `ngp-fixup.sh` 写进镜像）、`build_v28_p5.sh`（扩 vendor 分区 + 3DS core 搬进 vendor）、`build_v29_no_daijisho.sh`（从首次开机清单与镜像里移除 Daijishō）。后两个的分区偏移都从 GPT 现取 |
 

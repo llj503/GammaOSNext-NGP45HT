@@ -103,3 +103,87 @@ system/lib64/libgsl_alloc_hook.so               4,080 B  md5 717ce0e8b721c25f237
 **`azahar-nano-setup.sh`** —— 把 core 和 hooks 从 `/vendor/azahar` 复制到 `/data`。
 按**文件大小**判断是否需要复制，所以升级镜像时 /data 里的旧 core 会被自动换掉
 （只判断"是否存在"的话，刷了新版 core 也还是用旧的）。
+
+---
+
+# 菜单汉化
+
+`azahar-nano` 的菜单没有 i18n 框架（没有 .qm/.mo、没有语言枚举），所有菜单
+文本都是编译进二进制的 `const char*` 字面量。汉化只能改二进制本身：
+
+```
+原始 azahar-nano       524,080 B  md5 b9f6ff35fc71ec1eea125345bb7fab5a
+汉化 azahar-nano-zh    546,624 B  md5 bccd61880b57ed6aa73a46d497fef598
+```
+
+工具链在同目录 `zh/`，`python3 build.py` 从 `azahar-nano.orig` 生成 `azahar-nano.zh`。
+
+## 做法
+
+aarch64 没有 32 位绝对地址，字符串地址必须靠 `adrp + add` 指令对内联算出来，
+所以不能像 x86 那样"改个指针"。整条链是：
+
+1. **追加串池**：中文按 UTF-8 写进文件末尾页对齐的新区（本次 5,446 B / 205 条），
+   vaddr 由尾段 LOAD 的 `p_vaddr - p_offset` 差推出（`0x1000`）。
+2. **扩 LOAD**：把尾段（`.data`+`.bss` 那个）的 `p_filesz`/`p_memsz` 拉到覆盖串池，
+   新页才被映射。**扩之前必须把 `[.data 末 .. 新页)` 这段文件清零** ——
+   扩展后它会落到 `.bss` 的地址上，不清零 `.bss` 就带垃圾初值，进程起来就崩。
+   原 `.shstrtab` / `.gnu_debugdata` / 节表在这段里，搬到文件最末（不被映射）再更新
+   `e_shoff` 和两节的 `sh_offset`，分析用的符号表得以保留。
+3. **重写引用**：扫 `.text` 做数据流跟踪，得到 `adrp -> 唯一 target` 的映射
+   （精确分析下 2360 条 adrp **全部单目标**，启发式扫出来的"469 个多用"是寄存器
+   复用造成的误判），逐条把 `adrp` 的页、`add` 的 imm12 改成串池地址。本次改写 281 条
+   指令。`verify.py` 会重新反汇编核对每条都读到预期的中文，并确认没有 add 算出
+   映射区外的地址。
+
+## 三个非踩不可的坑
+
+**① 字形图集太小 → 乱码。** `OverlayGfx` 的 atlas 写死 `1024x1024` 单通道
+（`glTexImage2D(GL_LUMINANCE, 0x400, 0x400, ...)`）。中文字形数量是英文十几倍，
+一页菜单就快满；`loadGlyph` 装不下时调 `resetAtlas()` 回收 —— glyph 表清空，
+但**已经 emit 进 vertex buffer 的 UV 还指着旧位置**，新字形重新分配后覆盖过去，
+屏幕上就是半截字。`build.py` 把尺寸、四处边界判断（`0x3ff/0x400/0x401`）、
+UV 归一化系数一起改成 2048。注意 `scvtf s0, w8, #fbits` 的 **imm6 是 `64 - fbits`**
+（#0xa → #0xb 对应 imm6 54 → 53），按 fbits 直接改会得到无法反汇编的垃圾指令。
+
+**② 编译器把短字符串拆成"内存 8 字节 + 立即数 4 字节"。** 小于约 16 字节的字面量
+不走 `strlen`/`memcpy`，而是：
+
+```
+adrp x9, page ; add x9, x9, #off ; ldr x9, [x9]   ← 只读前 8 字节
+mov w8, #0x6953 ; movk w8, #0x6564, lsl #16      ← 后 4 字节硬编码成立即数
+```
+
+只改内存（或搬到串池）只改了前半截，后半截仍是英文，拼起来是非法 UTF-8，
+显示成 U+FFFD（**菱形框加问号**）。`xref.py` 按"引用点后是否紧跟 `ldr xN,[xN]`"
+把这类挑出来，`zh_inline.py` 里 28 条统一压到 **6 字节以内（2 个汉字）**，
+让 NUL 一定落在前 8 字节里，`strlen` 到 NUL 就停，后面立即数补的字节读不到。
+压不进去的（HLE / LLE / Xbox / Nintendo）保持英文。
+
+**③ 段名同时是 `config.ini` 的 section 名。** `Audio` / `Controls` / `Core` /
+`Layout` / `Renderer` / `System` 这几个字面量既做菜单分组标题，也做配置段名
+（编译器的常量合并让两处共用一个地址）。汉化后旧配置的 `[Audio]` 就读不到了，
+那些值回落到默认。`ngp-fixup.sh` 第 ⑨ 段做一次性迁移：检测到英文段名且还没有
+中文段名时，备份成 `config.ini.bak-en` 再逐个改名。实测 `layout_option = 3`、
+`resolution_factor = 2`、`is_new_3ds = true` 迁移后都还在。
+
+## 部署
+
+`/system` 是**整块只读挂载**（`/dev/block/mmcblk1p4 on / type ext4 (ro)`），改不了
+文件。汉化版放 `/vendor/bin/azahar-nano-zh`，开机由 `ngp-fixup.sh` 第九段
+`mount --bind` 盖到 `/system/bin/azahar-nano` 上。
+
+**不能直接 exec `/vendor/bin/azahar-nano-zh`** —— 那样 `/proc/self/exe` 落在 vendor
+命名空间，linker 找不到 `/system/lib64/libgui.so`，报
+`CANNOT LINK EXECUTABLE ... library "libgui.so" not found`。bind 到 `/system/bin`
+之后路径是 system 的，一切正常（实测 init 启动、游戏 60 fps）。
+
+回滚：`umount /system/bin/azahar-nano`，原版 md5 见上表。
+
+## 调试技巧
+
+`sys.gammaos.azahar_nano.shot=<任意数>` 会让前端把 DRM plane 导出成 PPM
+（`/data/system/azahar-nano/<n>_0.ppm` 是 320x240 游戏画面，`<n>_0_hud.ppm` 是
+1024x768 HUD 层）。**菜单所在的 overlay plane 不在导出范围内**，`screencap` 也抓不到
+（DRM 直出绕过 SurfaceFlinger），菜单只能人眼看。截 PPM 的办法很适合验证
+"游戏有没有真的出图"。

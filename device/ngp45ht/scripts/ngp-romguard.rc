@@ -1,0 +1,20 @@
+# NGP45HT: TF2 -> ROMs bind mount 的常驻守护。
+#
+# system_server 软重启后 vold 会重新初始化，把 /data/media/0/ROMs 和
+# /storage/emulated/0/ROMs 上的 bind mount 清掉，导致 /sdcard/ROMs 变成空目录，
+# 所有从 /sdcard 读 ROM 的模拟器都读不到文件（表现就是黑屏）。
+# ngp-fixup.sh 只在 boot_completed 跑一次，兜不住之后发生的重启，所以单独起
+# 一个常驻服务：脚本里是 while+sleep 死循环，正常不会退出；万一退了（OOM、
+# 被 kill），因为没写 oneshot，init 会按默认策略自动重启它。
+#
+# disabled 是必须的 —— class late_start 的服务不会自己起来，靠下面
+# boot_completed 的 trigger 显式 start。
+service ngp_romguard /vendor/bin/ngp-romguard.sh
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0
+    disabled
+
+on property:sys.boot_completed=1
+    start ngp_romguard
