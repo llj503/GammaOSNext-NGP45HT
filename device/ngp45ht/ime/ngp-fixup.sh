@@ -529,3 +529,42 @@ case "$CUR_RM" in
         log -t $TAG "gammapad restarted for remap"
         ;;
 esac
+
+# ⑪ 预装 LANGOS 修改版（PS2 走 NetherSX2 + N64/Dreamcast 映射修正）+ 预置 PS2 配置
+# apk 放 /vendor/etc/ngp/，不碰 system 分区：LANGOS 是 system app，
+# 直接换 /system/app 里的 apk 要过 verity 和包签名一致性，走 pm install -r
+# 装成 /data/app 的更新版最省事（签名和系统版同为 langos.jks，能覆盖）。
+NGP_DIR=/vendor/etc/ngp
+if [ -f "$NGP_DIR/LANGOS.apk" ]; then
+    if dumpsys package com.retrofront 2>/dev/null | grep -q "codePath=/data/app"; then
+        : # 已经是更新版，不用重复装
+    else
+        # 开机初期 pm 可能还没就绪，重试三次
+        i=0
+        while [ $i -lt 3 ]; do
+            if pm install -r "$NGP_DIR/LANGOS.apk" >/dev/null 2>&1; then
+                log -t $TAG "langos: patched build installed"
+                break
+            fi
+            i=$((i + 1))
+            sleep 5
+        done
+        [ $i -ge 3 ] && log -t $TAG "langos: install FAILED"
+    fi
+fi
+
+# NetherSX2 由 /vendor/app/NetherSX2/ 自动扫描安装，这里只补它的首启配置。
+# 手柄绑定是 Pad1/*（设备哈希做前缀），全新刷机时 app 还没跑过、prefs 不存在，
+# 所以只在「目录在、prefs 在、但还没有 Pad1/Cross」时补，避免覆盖用户自改。
+PS2_DATA=/data/data/xyz.aethersx2.android
+PS2_PREFS=$PS2_DATA/shared_prefs/xyz.aethersx2.android_preferences.xml
+if [ -f "$NGP_DIR/ps2prefs.xml" ] && [ -d "$PS2_DATA" ] && [ -f "$PS2_PREFS" ]; then
+    if ! grep -q "Pad1/Cross" "$PS2_PREFS" 2>/dev/null; then
+        UID_PS2=$(stat -c %u "$PS2_DATA" 2>/dev/null)
+        if [ -n "$UID_PS2" ] && cp -f "$NGP_DIR/ps2prefs.xml" "$PS2_PREFS"; then
+            chown "$UID_PS2:$UID_PS2" "$PS2_PREFS" 2>/dev/null
+            chmod 660 "$PS2_PREFS" 2>/dev/null
+            log -t $TAG "ps2: prefs seeded (uid=$UID_PS2, OpenGL + Pad1)"
+        fi
+    fi
+fi
