@@ -1,0 +1,22 @@
+# NGP45HT: 3DS（azahar-nano）退出后的显示兜底。
+#
+# 为什么另起一个 rc：正式的 azahar-nano.rc 在 /system/etc/init 里，而 /system
+# 是整块只读挂载改不了。init 允许多个 rc 文件监听同一组属性，放在 vendor 等价生效。
+#
+# 触发点用 init.svc.azahar-nano=stopped 而不是
+# sys.gammaos.azahar_nano.session_done=1：后者 /system 那边的规则会先把它清成 0，
+# 等扫描到 vendor 这边属性已经变了，规则可能不触发。服务状态没有这个竞态。
+#
+# oneshot：脚本自己会退出（sleep 2 + 判断 + 可能的 am start），不需要 init 守护。
+# 开机时这个 trigger 也会命中一次（服务初始就是 stopped），脚本发现焦点进程还
+# 在就直接退出，没有副作用。
+service ngp_azahar_exit /system/bin/sh /vendor/bin/ngp-azahar-exit.sh
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0
+    disabled
+    oneshot
+
+on property:init.svc.azahar-nano=stopped
+    start ngp_azahar_exit

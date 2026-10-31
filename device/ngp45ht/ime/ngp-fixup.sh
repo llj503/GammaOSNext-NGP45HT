@@ -500,3 +500,32 @@ if [ -f "$AZH_CFG" ] &&
         "$AZH_CFG" 2>/dev/null &&
         log -t $TAG "azahar zh: config sections migrated (bak-en kept)"
 fi
+
+# ⑩ gammapad 按键重映射：菜单键(BTN_MODE 316) -> BACK(158)
+# 默认 gammapad 把 316 映射成 172(KEY_HOMEPAGE)，按下就直接回桌面，
+# 游戏里根本弹不出菜单。改成 BACK 后：LANGOS/桌面 里 BACK 也是回上一层，
+# 行为不变；NetherSX2 收到 BACK 会弹暂停菜单。
+# persist.* 存在 /data/property，刷机后丢失，所以每次开机都要补一遍。
+CUR_RM=$(getprop persist.gammaos.gamepad.remap_btn)
+case "$CUR_RM" in
+    *316:158*)
+        : # 已经是目标值
+        ;;
+    *)
+        # 先把已有的 316:x 摘掉，避免出现两条
+        REST=$(echo "$CUR_RM" | tr ',' '\n' | grep -v '^316:' | tr '\n' ',' | sed 's/,$//')
+        if [ -n "$REST" ]; then
+            setprop persist.gammaos.gamepad.remap_btn "316:158,$REST"
+        else
+            setprop persist.gammaos.gamepad.remap_btn "316:158"
+        fi
+        log -t $TAG "gamepad remap: menu key -> BACK (now: $(getprop persist.gammaos.gamepad.remap_btn))"
+        # gammapad 只在启动时读属性，改完要重启它
+        # 注意：重启后物理手柄节点的 evdev 名字会消失是正常现象（它 re-hid 成虚拟手柄），
+        #      不等同于「手柄坏了」，判据仍用 getevent -i | grep retrogame_joypad 之外的
+        #      虚拟设备 "Xbox Wireless Controller" 是否在。
+        setprop ctl.restart gammapad 2>/dev/null
+        sleep 2
+        log -t $TAG "gammapad restarted for remap"
+        ;;
+esac

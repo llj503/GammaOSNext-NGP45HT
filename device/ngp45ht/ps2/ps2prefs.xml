@@ -1,0 +1,403 @@
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+    <boolean name="EmuCore/HostFs" value="false" />
+    <string name="MemoryCards/Slot2_Filename">Mcd002.ps2</string>
+    <string name="UI/Theme">follow_system</string>
+    <boolean name="EmuCore/GS/SyncToHostRefreshRate" value="false" />
+    <boolean name="EmuCore/GS/UserHacks_TargetPartialInvalidation" value="false" />
+    <boolean name="SPU2/Debug/Show_Messages_Voice_Off" value="false" />
+    <string name="UI/EmulationActivityOrientation">unspecified</string>
+    <string name="EmuCore/AffinityControlMode">0</string>
+    <boolean name="UI/ExpandToCutout" value="false" />
+    <string name="EmuCore/GS/MaxAnisotropy">0</string>
+    <boolean name="EmuCore/EnableNoInterlacingPatches" value="false" />
+    <boolean name="EmuCore/GS/IntegerScaling" value="false" />
+    <float name="Pad/PointerYSpeed" value="40.0" />
+    <int name="EmuCore/GS/ScreenshotFormat" value="0" />
+    <boolean name="MemoryCards/Multitap2_Slot4_Enable" value="false" />
+    <set name="Pad1/RUp">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/+Axis14</string>
+    </set>
+    <boolean name="EmuCore/GS/OsdShowMessages" value="true" />
+    <boolean name="DEV9/Eth/EthEnable" value="false" />
+    <float name="Pad1/TriggerDeadzone" value="0.0" />
+    <int name="EmuCore/GS/CropBottom" value="0" />
+    <string name="EmuCore/GS/extrathreads">2</string>
+    <boolean name="EmuCore/GS/preload_frame_with_gs_data" value="false" />
+    <boolean name="SPU2/Debug/Show_Messages_AutoDMA" value="false" />
+    <float name="Pad1/Deadzone" value="0.0" />
+    <string name="EmuCore/GS/dithering_ps2">2</string>
+    <boolean name="EmuCore/Gamefixes/OPHFlagHack" value="false" />
+    <boolean name="EmuCore/GS/UserHacks_DisablePartialInvalidation" value="false" />
+    <string name="MemoryCards/Multitap2_Slot3_Filename">Mcd-Multitap2-Slot03.ps2</string>
+    <int name="EmuCore/GS/ScreenshotQuality" value="50" />
+    <string name="EmuCore/GS/deinterlace_mode">0</string>
+    <boolean name="EmuCore/CPU/Recompiler/EnableIOP" value="true" />
+    <boolean name="EmuCore/GS/UserHacks_EstimateTextureRegion" value="false" />
+    <boolean name="MemoryCards/Multitap2_Slot2_Enable" value="false" />
+    <boolean name="EmuCore/EnableWideScreenPatches" value="false" />
+    <set name="Pad1/LLeft">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/-Axis0</string>
+    </set>
+    <boolean name="EmuCore/GS/OsdShowGSStats" value="false" />
+    <int name="EmuCore/GS/extrathreads_height" value="4" />
+    <boolean name="EmuCore/CPU/VU0.DenormalsAreZero" value="true" />
+    <boolean name="EmuCore/GS/UserHacks" value="false" />
+    <int name="DEV9/Hdd/HddSizeSectors" value="83886080" />
+    <boolean name="EmuCore/GS/DumpReplaceableTextures" value="false" />
+    <int name="EmuCore/GS/CropTop" value="0" />
+    <int name="SPU2/Output/Latency" value="60" />
+    <set name="Pad1/Square">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button100</string>
+    </set>
+    <string name="DEV9/Hdd/HddFile">DEV9hdd.raw</string>
+    <string name="EmuCore/GS/linear_present_mode">1</string>
+    <int name="EmuCore/Debugger/WindowHeight" value="0" />
+    <boolean name="EmuCore/GS/pcrtc_overscan" value="false" />
+    <int name="EmuCore/Debugger/MemoryViewBytesPerRow" value="16" />
+    <boolean name="SPU2/Debug/Dump_Memory" value="false" />
+    <boolean name="EmuCore/GS/OsdShowCPU" value="false" />
+    <string name="DEV9/Eth/DNS1">0.0.0.0</string>
+    <float name="EmuCore/GS/StretchY" value="100.0" />
+    <string name="DEV9/Eth/DNS2">0.0.0.0</string>
+    <boolean name="EmuCore/GS/VsyncEnable" value="false" />
+    <boolean name="EmuCore/GS/OsdShowSettings" value="false" />
+    <int name="EmuCore/TraceLog/EE.bitset" value="0" />
+    <boolean name="EmuCore/GS/DumpPaletteTextures" value="true" />
+    <int name="Main/UpdateNotesVersion" value="4" />
+    <int name="EmuCore/CPU/VU1.Roundmode" value="3" />
+    <boolean name="EmuCore/EnableGameFixes" value="true" />
+    <boolean name="EmuCore/Profiler/Enabled" value="false" />
+    <float name="Pad/PointerXDeadZone" value="20.0" />
+    <boolean name="EmuCore/GS/HWSpinGPUForReadbacks" value="false" />
+    <boolean name="EmuCore/GS/OsdShowInputs" value="false" />
+    <boolean name="DEV9/Eth/EthLogDNS" value="false" />
+    <boolean name="MemoryCards/Multitap1_Slot4_Enable" value="false" />
+    <string name="UI/DisplayAlignment">-1</string>
+    <int name="EmuCore/GS/png_compression_level" value="1" />
+    <string name="Pad7/Type">None</string>
+    <boolean name="SPU2/Debug/Show_Messages" value="false" />
+    <boolean name="EmuCore/GS/UserHacks_Disable_Safe_Features" value="false" />
+    <boolean name="EmuCore/EnableFastBoot" value="true" />
+    <int name="EmuCore/Debugger/FontHeight" value="12" />
+    <boolean name="Pad/MultitapPort1" value="false" />
+    <boolean name="Pad/MultitapPort2" value="false" />
+    <string name="EmuCore/GS/OverrideTextureBarriers">-1</string>
+    <boolean name="Achievements/ChallengeMode" value="false" />
+    <string name="EmuCore/CPU/VU.Roundmode">0</string>
+    <boolean name="EmuCore/GS/LoadTextureReplacements" value="false" />
+    <boolean name="DEV9/Eth/AutoMask" value="true" />
+    <boolean name="EmuCore/GS/UseBlitSwapChain" value="false" />
+    <boolean name="EmuCore/EnablePINE" value="false" />
+    <boolean name="Achievements/SoundEffects" value="true" />
+    <string name="Pad1/InvertL">0</string>
+    <boolean name="Logging/EnableInputRecordingLogs" value="true" />
+    <boolean name="EmuCore/Speedhacks/WaitLoop" value="true" />
+    <int name="SPU2/Output/OutputLatency" value="20" />
+    <boolean name="EmuCore/Profiler/RecBlocks_IOP" value="true" />
+    <boolean name="EmuCore/CdvdDumpBlocks" value="false" />
+    <boolean name="EmuCore/GS/SkipDuplicateFrames" value="true" />
+    <string name="SPU2/Output/OutputModule">aaudio</string>
+    <string name="EmuCore/Speedhacks/EECycleRate">0</string>
+    <string name="Pad1/InvertR">0</string>
+    <string name="EmuCore/GS/mipmap_hw">-1</string>
+    <string name="TouchscreenController/View">none</string>
+    <boolean name="EmuCore/Gamefixes/VUOverflowHack" value="false" />
+    <string name="Pad3/Type">None</string>
+    <boolean name="EmuCore/EnableDiscordPresence" value="false" />
+    <boolean name="Logging/EnableControllerLogs" value="false" />
+    <boolean name="TouchscreenController/TouchGliding" value="false" />
+    <set name="Pad1/Left">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/+Axis15</string>
+    </set>
+    <int name="EmuCore/GS/ShadeBoost_Contrast" value="50" />
+    <boolean name="MemoryCards/Slot2_Enable" value="true" />
+    <boolean name="EmuCore/GS/DisableThreadedPresentation" value="false" />
+    <boolean name="EmuCore/GS/UseDebugDevice" value="false" />
+    <boolean name="EmuCore/GS/PrecacheTextureReplacements" value="false" />
+    <set name="Pad1/LRight">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/+Axis0</string>
+    </set>
+    <string name="EmuCore/GS/OverrideGeometryShaders">-1</string>
+    <boolean name="Achievements/TestMode" value="false" />
+    <float name="Pad1/PressureModifier" value="0.5" />
+    <boolean name="EmuCore/Gamefixes/VUSyncHack" value="false" />
+    <boolean name="Achievements/PrimedIndicators" value="true" />
+    <boolean name="TouchscreenController/EnableVibration" value="false" />
+    <boolean name="EmuCore/Gamefixes/FpuNegDivHack" value="false" />
+    <int name="EmuCore/GS/ScreenshotSize" value="0" />
+    <boolean name="EmuCore/Gamefixes/DMABusyHack" value="false" />
+    <int name="EmuCore/CPU/Recompiler/VU0ClampMode" value="1" />
+    <boolean name="EmuCore/GS/LoadTextureReplacementsAsync" value="true" />
+    <boolean name="Achievements/RichPresence" value="true" />
+    <boolean name="EmuCore/CPU/Recompiler/EnableEE" value="true" />
+    <int name="EmuCore/GS/CropRight" value="0" />
+    <string name="SPU2/Output/DeviceName"></string>
+    <set name="Pad1/R1">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button103</string>
+    </set>
+    <string name="SPU2/Mixing/Interpolation">0</string>
+    <set name="Pad1/R2">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button105</string>
+    </set>
+    <boolean name="EmuCore/EnableRecordingTools" value="true" />
+    <set name="Pad1/R3">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button107</string>
+    </set>
+    <boolean name="EmuCore/Gamefixes/XgKickHack" value="false" />
+    <boolean name="EmuCore/BackupSavestate" value="false" />
+    <boolean name="EmuCore/GS/pcrtc_antiblur" value="true" />
+    <int name="EmuCore/GS/UserHacks_TCOffsetX" value="0" />
+    <boolean name="SPU2/Debug/Global_Enable" value="false" />
+    <int name="EmuCore/GS/UserHacks_TCOffsetY" value="0" />
+    <int name="EmuCore/Debugger/WindowWidth" value="0" />
+    <float name="Pad1/AxisScale" value="1.33" />
+    <boolean name="EmuCore/Gamefixes/FullVU0SyncHack" value="false" />
+    <string name="USB1/Type">None</string>
+    <string name="EmuCore/CPU/Recompiler/VUClampMode">1</string>
+    <set name="Pad1/Triangle">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button99</string>
+    </set>
+    <boolean name="EmuCore/Speedhacks/IntcStat" value="true" />
+    <boolean name="DEV9/Hdd/HddEnable" value="false" />
+    <set name="Pad1/Circle">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button96</string>
+    </set>
+    <set name="Pad1/LDown">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/+Axis1</string>
+    </set>
+    <boolean name="EmuCore/GS/UserHacks_WildHack" value="false" />
+    <boolean name="EmuCore/GS/ShadeBoost" value="false" />
+    <boolean name="EmuCore/Gamefixes/VuAddSubHack" value="false" />
+    <boolean name="SPU2/Debug/Show_Messages_DMA_Transfer" value="false" />
+    <string name="MemoryCards/Multitap1_Slot4_Filename">Mcd-Multitap1-Slot04.ps2</string>
+    <boolean name="EmuCore/GS/mipmap" value="true" />
+    <int name="DEV9/Eth/Hosts/Count" value="0" />
+    <boolean name="EmuCore/Gamefixes/IbitHack" value="false" />
+    <boolean name="EmuCore/GS/UserHacks_DisableDepthSupport" value="false" />
+    <boolean name="EmuCore/GS/pcrtc_offsets" value="false" />
+    <boolean name="EmuCore/CPU/VU0.FlushToZero" value="true" />
+    <string name="DEV9/Eth/ModeDNS1">Auto</string>
+    <string name="DEV9/Eth/ModeDNS2">Auto</string>
+    <string name="EmuCore/GS/UserHacks_CPUSpriteRenderBW">0</string>
+    <boolean name="EmuCore/CPU/FPU.FlushToZero" value="true" />
+    <string name="EmuCore/GS/Adapter"></string>
+    <boolean name="EmuCore/Gamefixes/GIFFIFOHack" value="false" />
+    <string name="MemoryCards/Slot1_Filename">Mcd001.ps2</string>
+    <float name="Pad1/LargeMotorScale" value="1.0" />
+    <boolean name="EmuCore/GS/DisableFramebufferFetch" value="false" />
+    <float name="Pad/PointerInertia" value="10.0" />
+    <string name="EmuCore/Speedhacks/EECycleSkip">0</string>
+    <boolean name="EmuCore/Debugger/AlignMemoryWindowStart" value="true" />
+    <string name="Filenames/BIOS"></string>
+    <float name="Pad1/SmallMotorScale" value="1.0" />
+    <boolean name="EmuCore/SavestateZstdCompression" value="true" />
+    <boolean name="SPU2/Output/OutputLatencyMinimal" value="false" />
+    <string name="EmuCore/GS/HWDumpDirectory"></string>
+    <string name="EmuCore/GzipIsoIndexTemplate">$(f).pindex.tmp</string>
+    <boolean name="EmuCore/SaveStateOnShutdown" value="false" />
+    <boolean name="UI/HasRunWizard" value="true" />
+    <boolean name="Achievements/UnofficialTestMode" value="false" />
+    <boolean name="EmuCore/Speedhacks/fastCDVD" value="false" />
+    <float name="Pad1/TriggerScale" value="1.0" />
+    <boolean name="UI/GameGridView" value="false" />
+    <set name="Pad1/Start">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button108</string>
+    </set>
+    <string name="SPU2/Output/BackendName"></string>
+    <string name="Pad8/Type">None</string>
+    <boolean name="EmuCore/GS/fxaa" value="false" />
+    <float name="Pad1/ButtonDeadzone" value="0.0" />
+    <boolean name="Logging/EnableVerbose" value="false" />
+    <set name="Pad1/RRight">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/+Axis11</string>
+    </set>
+    <int name="EmuCore/GS/CropLeft" value="0" />
+    <string name="Pad2/Type">None</string>
+    <string name="EmuCore/GS/upscale_multiplier">1.000000</string>
+    <boolean name="InputSources/Sensor" value="false" />
+    <string name="EmuCore/CPU/FPU.Roundmode">3</string>
+    <boolean name="EmuCore/Gamefixes/BlitInternalFPSHack" value="false" />
+    <int name="EmuCore/GS/UserHacks_SkipDraw_Start" value="0" />
+    <boolean name="EmuCore/GS/OsdShowFPS" value="false" />
+    <boolean name="EmuCore/CPU/FPU.DenormalsAreZero" value="true" />
+    <boolean name="EmuCore/TraceLog/Enabled" value="false" />
+    <string name="DEV9/Eth/Mask">0.0.0.0</string>
+    <string name="DEV9/Eth/EthDevice"></string>
+    <boolean name="EmuCore/McdEnableEjection" value="true" />
+    <boolean name="EmuCore/GS/paltex" value="false" />
+    <boolean name="EmuCore/InhibitScreensaver" value="true" />
+    <string name="MemoryCards/Multitap2_Slot2_Filename">Mcd-Multitap2-Slot02.ps2</string>
+    <int name="EmuCore/TraceLog/IOP.bitset" value="0" />
+    <float name="Pad/PointerYDeadZone" value="20.0" />
+    <boolean name="EmuCore/Speedhacks/vuFlagHack" value="true" />
+    <float name="EmuCore/GS/FrameratePAL" value="50.0" />
+    <boolean name="EmuCore/Gamefixes/SkipMPEGHack" value="false" />
+    <set name="Pad1/Right">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/-Axis15</string>
+    </set>
+    <boolean name="EmuCore/GS/OsdShowFrameTimes" value="false" />
+    <int name="EmuCore/GS/CASSharpness" value="50" />
+    <string name="EmuCore/GS/UserHacks_GPUTargetCLUTMode">0</string>
+    <string name="EmuCore/GS/CRCHackLevel">-1</string>
+    <string name="EmuCore/GS/HWDownloadMode">0</string>
+    <set name="Pad1/RDown">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/+Axis14</string>
+    </set>
+    <boolean name="SPU2/Debug/Dump_Regs" value="false" />
+    <boolean name="TouchscreenController/BindToRightStick" value="false" />
+    <boolean name="Logging/EnableEEConsole" value="false" />
+    <boolean name="EmuCore/GS/UserHacks_align_sprite_X" value="false" />
+    <string name="EmuCore/GS/UserHacks_HalfPixelOffset">0</string>
+    <string name="EmuCore/GS/UserHacks_TextureInsideRt">0</string>
+    <boolean name="SPU2/Debug/Log_DMA_Transfers" value="false" />
+    <string name="EmuCore/GS/UserHacks_round_sprite_offset">0</string>
+    <string name="EmuCore/GS/Renderer">12</string>
+    <float name="EmuCore/GS/osd_scale" value="100.0" />
+    <boolean name="EmuCore/CdvdVerboseReads" value="false" />
+    <int name="SPU2/Output/DplDecodingLevel" value="0" />
+    <string name="DEV9/Eth/EthApi">Unset</string>
+    <string name="EmuCore/BlockDumpSaveDirectory"></string>
+    <boolean name="EmuCore/GS/OsdShowGPU" value="false" />
+    <string name="Pad6/Type">None</string>
+    <boolean name="EmuCore/GS/OsdShowVersionInfo" value="false" />
+    <string name="MemoryCards/Multitap1_Slot2_Filename">Mcd-Multitap1-Slot02.ps2</string>
+    <int name="EmuCore/GS/UserHacks_SkipDraw_End" value="0" />
+    <boolean name="EmuCore/Gamefixes/SoftwareRendererFMVHack" value="false" />
+    <boolean name="SPU2/Debug/Show_Messages_Key_On_Off" value="false" />
+    <set name="GameList/RecursivePaths">
+        <string>content://com.android.externalstorage.documents/tree/00000000-0000-0000-0000-000000000001%3Aps2</string>
+    </set>
+    <boolean name="EmuCore/GS/DumpDirectTextures" value="true" />
+    <int name="EmuCore/GS/ShadeBoost_Brightness" value="50" />
+    <boolean name="SPU2/Debug/Log_WAVE_Output" value="false" />
+    <string name="MemoryCards/Multitap2_Slot4_Filename">Mcd-Multitap2-Slot04.ps2</string>
+    <boolean name="MemoryCards/Multitap1_Slot3_Enable" value="false" />
+    <string name="Pad1/Type">DualShock2</string>
+    <boolean name="EmuCore/GS/UserHacks_ReadTCOnClose" value="false" />
+    <set name="Pad1/Up">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/+Axis16</string>
+    </set>
+    <string name="USB2/Type">None</string>
+    <boolean name="EmuCore/Gamefixes/FpuMulHack" value="false" />
+    <boolean name="EmuCore/Gamefixes/GoemonTlbHack" value="false" />
+    <boolean name="EmuCore/GS/DisableDualSourceBlend" value="false" />
+    <string name="DEV9/Eth/PS2IP">0.0.0.0</string>
+    <boolean name="EmuCore/GS/disable_shader_cache" value="false" />
+    <int name="EmuCore/GS/ShadeBoost_Saturation" value="50" />
+    <float name="EmuCore/GS/FramerateNTSC" value="59.94" />
+    <string name="UI/PerformancePreset">safe</string>
+    <string name="TouchscreenController/PortIndex">0</string>
+    <string name="EmuCore/CPU/Recompiler/FPUClampMode">1</string>
+    <string name="EmuCore/GS/FMVAspectRatioSwitch">Off</string>
+    <boolean name="InputSources/Android" value="true" />
+    <boolean name="EmuCore/Profiler/RecBlocks_EE" value="true" />
+    <boolean name="EmuCore/CPU/VU1.DenormalsAreZero" value="true" />
+    <boolean name="EmuCore/CPU/Recompiler/EnableVU1" value="true" />
+    <boolean name="EmuCore/GS/OsdShowResolution" value="false" />
+    <string name="EmuCore/GS/texture_preloading">2</string>
+    <boolean name="MemoryCards/Slot1_Enable" value="true" />
+    <boolean name="SPU2/Debug/Log_Register_Access" value="false" />
+    <boolean name="SPU2/Debug/Show_Messages_Overruns" value="false" />
+    <boolean name="EmuCore/GS/disable_hw_readbacks" value="false" />
+    <boolean name="EmuCore/McdFolderAutoManage" value="true" />
+    <boolean name="EmuCore/CPU/Recompiler/EnableVU0" value="true" />
+    <string name="EmuCore/GS/TVShader">0</string>
+    <boolean name="EmuCore/CPU/Recompiler/EnableFastmem" value="true" />
+    <set name="Pad1/RLeft">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/-Axis11</string>
+    </set>
+    <int name="EmuCore/GS/GSDumpCompression" value="2" />
+    <boolean name="SPU2/Debug/Show_Messages_CacheStats" value="false" />
+    <boolean name="DEV9/Eth/AutoGateway" value="true" />
+    <string name="UI/Language">none</string>
+    <boolean name="EmuCore/Gamefixes/VIF1StallHack" value="false" />
+    <boolean name="SPU2/Debug/Dump_Info" value="false" />
+    <int name="SPU2/Mixing/FinalVolume" value="100" />
+    <boolean name="InputSources/Keyboard" value="true" />
+    <int name="SPU2/Output/SpeakerConfiguration" value="0" />
+    <boolean name="EmuCore/GS/UserHacks_merge_pp_sprite" value="false" />
+    <int name="EmuCore/CPU/VU0.Roundmode" value="3" />
+    <string name="Pad4/Type">None</string>
+    <string name="SPU2/Output/SynchMode">0</string>
+    <boolean name="EmuCore/GS/autoflush_sw" value="true" />
+    <boolean name="Logging/EnableTimestamps" value="true" />
+    <float name="Framerate/NominalScalar" value="1.0" />
+    <set name="Pad1/LUp">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/-Axis1</string>
+    </set>
+    <boolean name="EmuCore/GS/DumpReplaceableMipmaps" value="false" />
+    <float name="Framerate/SlomoScalar" value="0.5" />
+    <boolean name="EmuCore/GS/UserHacks_AutoFlush" value="false" />
+    <boolean name="EmuCore/CdvdShareWrite" value="false" />
+    <boolean name="EmuCore/GS/DumpTexturesWithFMVActive" value="false" />
+    <boolean name="EmuCore/Speedhacks/vu1Instant" value="true" />
+    <string name="MemoryCards/Multitap1_Slot3_Filename">Mcd-Multitap1-Slot03.ps2</string>
+    <string name="EmuCore/GS/UserHacks_Half_Bottom_Override">-1</string>
+    <boolean name="InputSources/Mouse" value="true" />
+    <string name="EmuCore/GS/UserHacks_CPUCLUTRender">0</string>
+    <string name="EmuCore/GS/UserHacks_TriFilter">-1</string>
+    <boolean name="EmuCore/GS/OsdShowIndicators" value="true" />
+    <boolean name="Achievements/Enabled" value="false" />
+    <boolean name="EmuCore/Gamefixes/EETimingHack" value="false" />
+    <string name="EmuCore/GS/accurate_blending_unit">1</string>
+    <boolean name="EmuCore/Gamefixes/VIFFIFOHack" value="false" />
+    <boolean name="EmuCore/ConsoleToStdio" value="false" />
+    <boolean name="EmuCore/GS/FrameLimitEnable" value="true" />
+    <boolean name="TouchscreenController/HapticFeedback" value="false" />
+    <boolean name="EmuCore/CPU/Recompiler/PauseOnTLBMiss" value="false" />
+    <string name="EmuCore/GS/filter">2</string>
+    <boolean name="EmuCore/GS/disable_interlace_offset" value="false" />
+    <string name="EmuCore/GS/AspectRatio">Auto 4:3/3:2</string>
+    <string name="EmuCore/GS/SWDumpDirectory"></string>
+    <string name="EmuCore/GS/CASMode">0</string>
+    <boolean name="EmuCore/GS/UserHacks_CPU_FB_Conversion" value="false" />
+    <boolean name="EmuCore/CPU/VU1.FlushToZero" value="true" />
+    <int name="EmuCore/Debugger/FontWidth" value="8" />
+    <boolean name="EmuCore/EnableCheats" value="false" />
+    <boolean name="EmuCore/EnablePatches" value="true" />
+    <string name="EmuCore/GS/VsyncQueueSize">2</string>
+    <string name="DEV9/Eth/Gateway">0.0.0.0</string>
+    <boolean name="MemoryCards/Multitap1_Slot2_Enable" value="false" />
+    <boolean name="EmuCore/Speedhacks/vuThread" value="true" />
+    <boolean name="EmuCore/CPU/Recompiler/EnableEECache" value="false" />
+    <boolean name="Achievements/Notifications" value="true" />
+    <boolean name="Logging/EnableIOPConsole" value="false" />
+    <boolean name="EmuCore/WarnAboutUnsafeSettings" value="true" />
+    <boolean name="EmuCore/Profiler/RecBlocks_VU0" value="true" />
+    <boolean name="EmuCore/Profiler/RecBlocks_VU1" value="true" />
+    <boolean name="EmuCore/Debugger/ShowDebuggerOnStart" value="false" />
+    <set name="Pad1/Select">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button109</string>
+    </set>
+    <boolean name="Logging/EnableSystemConsole" value="false" />
+    <boolean name="TouchscreenController/AutoHide" value="false" />
+    <set name="Pad1/L1">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button102</string>
+    </set>
+    <set name="Pad1/L2">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button104</string>
+    </set>
+    <boolean name="EmuCore/GS/HWSpinCPUForReadbacks" value="false" />
+    <set name="Pad1/L3">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button106</string>
+    </set>
+    <set name="Pad1/Down">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/-Axis16</string>
+    </set>
+    <boolean name="EmuCore/CPU/Recompiler/fpuCorrectAddSub" value="true" />
+    <boolean name="MemoryCards/Multitap2_Slot3_Enable" value="false" />
+    <boolean name="Logging/EnableFileLogging" value="false" />
+    <set name="Pad1/Cross">
+        <string>30f3758ee7462e153c8b3fe1d9b90961cee02e2d/Button97</string>
+    </set>
+    <boolean name="DEV9/Eth/InterceptDHCP" value="false" />
+    <float name="Framerate/TurboScalar" value="2.0" />
+    <boolean name="EmuCore/GS/OsdShowSpeed" value="false" />
+    <string name="Pad5/Type">None</string>
+    <int name="EmuCore/CPU/Recompiler/VU1ClampMode" value="1" />
+    <int name="UI/SettingsVersion" value="1" />
+    <boolean name="EmuCore/Gamefixes/InstantDMAHack" value="false" />
+    <boolean name="Achievements/Leaderboards" value="true" />
+    <float name="Pad/PointerXSpeed" value="40.0" />
+</map>

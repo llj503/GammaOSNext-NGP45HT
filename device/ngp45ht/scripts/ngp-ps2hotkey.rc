@@ -1,0 +1,15 @@
+# NGP45HT: PS2 退出热键守护。
+# AetherSX2 没有 Exit 热键（libemucore 里只有 OpenPauseMenu 之类），退出只能在
+# 暂停菜单里手点；且普通 finish() 会留后台进程，只有 force-stop 才干净。
+# 所以用常驻脚本监听 SELECT+START 双击，force-stop 并回 LANGOS。
+service ngp_ps2hotkey /vendor/bin/ngp-ps2hotkey.sh
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0
+
+on property:sys.boot_completed=1
+    start ngp_ps2hotkey
+
+on property:init.svc.ngp_ps2hotkey=stopped
+    start ngp_ps2hotkey
