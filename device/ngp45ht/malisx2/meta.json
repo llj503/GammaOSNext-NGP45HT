@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "malisx2 0.3.2 (ngp-ngp45ht-1)",
+  "description": "Clean-room Vulkan driver for Arm Mali on kbase. NGP45HT build: Arm gralloc handle parsed by int index instead of the RK3576 C struct, so a handle with one int after the stride (RK3562) is read correctly instead of being rejected as a tiled buffer.",
+  "author": "malisx2 + ngp45ht patch",
+  "packageVersion": "0.3.2+ngp45ht-1",
+  "vendor": "malisx2",
+  "driverVersion": "44.1.0",
+  "minApi": 29,
+  "libraryName": "libvulkan_malisx2.so"
+}

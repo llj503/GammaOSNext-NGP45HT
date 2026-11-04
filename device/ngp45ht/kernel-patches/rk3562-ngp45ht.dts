@@ -547,14 +547,34 @@
 	battery {
 		compatible = "rk817,battery";
 		/*
-		 * 21-point OCV table in mV, from the vendor tree.  Monotonic by
-		 * construction -- rk817_bat_vol_to_soc() walks it with a binary
-		 * search, so a non-sorted table silently returns wrong SoC.
+		 * 21-point OCV table in mV, 5% per step, 0%..100%.
+		 * rk817_bat_vol_to_soc() walks it linearly, so it MUST stay
+		 * strictly increasing -- a non-sorted table silently returns
+		 * nonsense.
+		 *
+		 * 2026-11-04 换表。原表（EE 原厂）顶在 4171 mV，是给 4.2 V
+		 * 电池准备的；但本机 charger 的 max_chrg_voltage 是 4350 mV，
+		 * 说明电池是 4.35 V 高压体系。用原表的话 4171 mV 以上整段
+		 * 都算 100%，最后约 15% 容量在表里没有对应区间。
+		 *
+		 * 旧表（留档，别删，出问题好回退）：
+		 *   3500 3539 3608 3694 3767 3806 3829 3844 3856 3863
+		 *   3869 3882 3930 4003 4010 4023 4033 4045 4059 4070 4171
+		 *
+		 * 新表按 4.35 V 锂电的典型 OCV 曲线给，覆盖 3.40 V ~ 4.35 V。
+		 * ⚠ 这是典型值不是实测值。首次刷完后需按实测放电数据校正：
+		 *   记录 90/70/50/30/10% 各自对应的 voltage_now，
+		 *   再回来逐点修这张表。
 		 */
-		ocv_table = <3500 3539 3608 3694 3767 3806 3829 3844 3856 3863 3869 3882 3930 4003 4010 4023 4033 4045 4059 4070 4171>;
+		ocv_table = <3400 3500 3565 3610 3650 3682 3712 3740 3766 3792 3818 3845 3875 3910 3950 3995 4045 4100 4160 4235 4350>;
 		design_capacity = <3791>;
 		design_qmax = <4000>;
-		design_max_voltage = <4120>;
+		/*
+		 * design_max_voltage 与 charger 的 max_chrg_voltage 对齐（4350）。
+		 * 原来填 4120，比 OCV 表顶还低 51 mV —— 驱动用它做强校正，
+		 * 会导致 4.12 V 就被判成满电。现在两边一致。
+		 */
+		design_max_voltage = <4350>;
 		sleep_enter_current = <150>;
 		sleep_exit_current = <180>;
 		sleep_filter_current = <100>;

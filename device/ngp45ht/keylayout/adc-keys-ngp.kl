@@ -1,0 +1,30 @@
+# NGP45HT 机身侧键 —— SARADC 电阻梯（DTS 节点 adc-keys-ngp）
+#
+# 文件名必须是 adc-keys-ngp.kl —— InputManager 按「设备名」找 .kl，
+# 设备名是 adc-keys-ngp（dumpsys input 可查）。原来那个 adc-keys.kl
+# 名字对不上，一直没被加载过，实际生效的是 Generic.kl。
+#
+# 内核侧（rk3562-ngp45ht.dts）上报的原始码：
+#     KEY_ESC(1)        <- back-key    物理：机身返回键
+#     KEY_MUTE(113)     <- menu-key    物理：机身 M 键
+#     KEY_VOLUMEUP(115) / KEY_VOLUMEDOWN(114)
+#
+# ⚠ 音量键对调（2026-11-04 实测）：
+#   DTB 里两个音量键的阈值和物理键是反的 ——
+#     vol-up-key   code=115  press-threshold=17000µV    （物理「-」键实际落这里）
+#     vol-down-key code=114  press-threshold=1200000µV  （物理「+」键实际落这里）
+#   所以这里对调：物理「+」报 114 → VOLUME_UP，物理「-」报 115 → VOLUME_DOWN。
+#   根治要改 DTS 的 press-threshold-microvolt，届时本文件需同步还原。
+#
+# M 键翻成 HOME（2026-11-04 定版）：
+#   用户明确要求「按 M 键直接退回 LANGOS 界面」。
+#   LANGOS（com.retrofront）是 launcher，所以 HOME 键正好落到它上面。
+#   注意：HOME 不是 BACK —— 不会弹模拟器菜单，只回桌面。
+#   要弹模拟器菜单/返回上一层，用机身返回键（同为 BACK，长按 1.5s 才退出游戏）。
+#
+# 长按退出游戏由 /vendor/bin/ngp-navkey.sh 负责（adc-keys 只报按下/松开）。
+
+key 1     BACK
+key 113   HOME
+key 114   VOLUME_UP
+key 115   VOLUME_DOWN

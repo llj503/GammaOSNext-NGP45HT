@@ -1,0 +1,59 @@
+--- a/drivers/power/supply/rk817_battery.c
++++ b/drivers/power/supply/rk817_battery.c
+@@ -2303,10 +2303,55 @@
+ 	battery->voltage_sys = rk817_bat_get_sys_voltage(battery);
+ 	battery->current_avg = rk817_bat_get_avg_current(battery);
+ 	battery->voltage_relax = rk817_bat_get_relax_voltage(battery);
+-	battery->rsoc = rk817_bat_get_rsoc(battery);
+ 	battery->remain_cap = rk817_bat_get_capacity_uah(battery);
+ 	battery->voltage_usb = rk817_bat_get_USB_voltage(battery);
++	/* chrg_status 必须先更新：下面的 SoC 端点校正依赖它 */
+ 	battery->chrg_status = get_charge_status(battery);
++
++	/*
++	 * NGP45HT 定制（2026-11-04）：SoC 主来源由硬件 fuel gauge 换成 OCV 查表。
++	 *
++	 * 原来这一行是
++	 *     battery->rsoc = rk817_bat_get_rsoc(battery);
++	 * 即 rsoc = remain_cap / fcc，两个量都取自 RK817 内部 fuel gauge。
++	 * 该 fuel gauge 靠 Q_MAX 学习值工作，而学习值只有在完整充放电循环后
++	 * 才收敛。掌机常年插电、浅充浅放，学习值长期漂移 —— 实测充电到
++	 * 4.281 V（charger 目标 4.35 V）时它只报 64~74%。这套算法不看电压，
++	 * 所以改 OCV 表、改内阻补偿都影响不到它，只能从主路径上替换掉。
++	 *
++	 * 电压是电池上唯一可靠的物理量，这里直接查 OCV 表，并用内阻把带载
++	 * 端电压回算成开路电压：
++	 *     OCV = V_terminal - I * R
++	 * 符号约定（见 rk817_bat_get_avg_current，16 位补码）：
++	 *     current_avg > 0 -> 充电，< 0 -> 放电
++	 * 单位：voltage mV，current mA，bat_res mΩ -> I*R/1000 得 mV。
++	 *
++	 * rsoc 是千分比（0..100000）：POWER_SUPPLY_PROP_CAPACITY 取
++	 * (dsoc + 500) / 1000 上报，而 rk817_bat_vol_to_soc() 返回 0..100，
++	 * 所以这里要乘 1000。
++	 */
++	{
++		int ocv_mv, soc;
++
++		ocv_mv = battery->voltage_avg -
++			 (battery->current_avg *
++			  (int)battery->pdata->bat_res) / 1000;
++		soc = rk817_bat_vol_to_soc(battery, ocv_mv);
++
++		/*
++		 * 端点强校正。纯 OCV 在两端最不可靠（充电末端的极化压降、
++		 * 放电末端的瞬时跌落都会让读数抖动），所以端点直接钉死，
++		 * 同时把漂移挡在外面不累积。
++		 */
++		if (battery->chrg_status == CHARGE_FINISH ||
++		    ocv_mv >= (int)battery->pdata->design_max_voltage)
++			soc = 100;
++		else if (ocv_mv <= (int)battery->pdata->pwroff_vol)
++			soc = 0;
++
++		battery->rsoc = soc * 1000;
++	}
++
+ 	rk817_bat_update_charging_status(battery);
+ 	DBG("valtage usb: %d\n", battery->voltage_usb);
+ 	DBG("UPDATE: voltage_avg = %d\n"

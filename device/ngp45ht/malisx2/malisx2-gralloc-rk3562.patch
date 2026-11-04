@@ -1,0 +1,174 @@
+diff --git a/src/vk/mali_wsi.c b/src/vk/mali_wsi.c
+index f1aff47..8832a6c 100644
+--- a/src/vk/mali_wsi.c
++++ b/src/vk/mali_wsi.c
+@@ -447,91 +447,108 @@ fail:
+  * swapchain buffer, which only the GPU and the display touch, it is 0, and
+  * Android's gralloc wrapper and the Vulkan loader pass the 0 on. The
+  * buffer's real layout is in its private handle, which is what the gralloc
+- * mapper reads it from. The handle is two fds (the buffer's dma-buf and a
+- * memfd of metadata) followed by 37 ints; this is the front of it.
++ * mapper reads it from.
+  *
+- * The layout is the one a handle from the RG Vita Pro (RK3576) shows: two
+- * zero ints after the stride that Rockchip's published gralloc source does
+- * not have, then the 32-bit format and modifiers at 0x44 and plane 0 at
+- * 0x4c ({0, 7680, 1920, 1080} for a 1920x1080 RGBA8888 buffer). The checks
+- * below refuse a handle laid out any other way rather than misread it.
++ * The handle is a native_handle_t: three counts, then numFds fds, then a
++ * flat array of ints. That array is:
++ *
++ *     [0]   magic            0x3141592
++ *     [1]   width
++ *     [2]   height
++ *     [3]   req_format
++ *     [4]   producer_usage   low 32 bits
++ *     [5]   producer_usage   high 32 bits
++ *     [6]   consumer_usage   low 32 bits
++ *     [7]   consumer_usage   high 32 bits
++ *     [8]   stride           the 0 the loader passes on
++ *     [9..] unknown ints     count varies by SoC, see below
++ *     [9+N]  alloc_format.base
++ *     [10+N] alloc_format.modifiers     0 for an uncompressed layout
++ *     [11+N] plane[0].offset
++ *     [12+N] plane[0].byte_stride
++ *     [13+N] plane[0].alloc_width
++ *     [14+N] plane[0].alloc_height
++ *     [15+N] plane[1] ...
++ *
++ * N is 2 on the RK3576 (RG Vita Pro -- the handle this file was written
++ * against) and 1 on RK3562/RK3566 class boards, whose gralloc has one
++ * fewer int between the stride and the format.
++ *
++ * Reading the array through a C struct cannot express that. The struct
++ * also picks up the compiler's 8-byte padding in front of the uint64
++ * usages, which the flat array does not have, so every field after the
++ * stride lands 4 bytes early and `modifiers` reads out as someone else's
++ * byte_stride. That is exactly the "gralloc allocated a compressed or
++ * tiled buffer" refusal seen on the RK3562: the buffer was linear, the
++ * parse was wrong.
++ *
++ * Fields are therefore read by index, and both N values are tried.
+  */
+ #define ARM_GRALLOC_VERSION  12          /* sizeof(native_handle_t) */
+ #define ARM_GRALLOC_NUM_FDS  2
+ #define ARM_GRALLOC_NUM_INTS 37          /* later builds append more */
+ #define ARM_GRALLOC_MAGIC    0x3141592
+ 
+-struct arm_gralloc_handle {
+-   int version, num_fds, num_ints;       /* native_handle_t */
+-   int share_fd, share_attr_fd;
+-   int magic;
+-   int width, height, req_format;
+-   uint64_t producer_usage, consumer_usage;
+-   int stride;                           /* the 0 the loader passes */
+-   int unknown[2];                       /* 0 on the RK3576 */
+-   struct {
+-      uint32_t base;
+-      uint32_t modifiers;                /* 0 for an uncompressed layout */
+-   } alloc_format;
+-   struct {
+-      uint32_t offset, byte_stride, alloc_width, alloc_height;
+-   } plane[3];
+-   int size, layer_count;
+-   uint64_t backing_store_id, attr_size, reserved_region_size;
+-   int type;
+-};
+-
+-_Static_assert(offsetof(struct arm_gralloc_handle, magic) == 0x14, "arm gralloc magic");
+-_Static_assert(offsetof(struct arm_gralloc_handle, stride) == 0x38, "arm gralloc stride");
+-_Static_assert(offsetof(struct arm_gralloc_handle, alloc_format) == 0x44, "arm gralloc format");
+-_Static_assert(offsetof(struct arm_gralloc_handle, plane) == 0x4c, "arm gralloc planes");
+-_Static_assert(offsetof(struct arm_gralloc_handle, size) == 0x7c, "arm gralloc size");
+-_Static_assert(offsetof(struct arm_gralloc_handle, type) == 0xa0, "arm gralloc type");
+-_Static_assert(sizeof(struct arm_gralloc_handle) ==
+-                  3 * sizeof(int) + 4 * (ARM_GRALLOC_NUM_FDS + ARM_GRALLOC_NUM_INTS),
+-               "arm gralloc handle size");
+-
+-/*
+- * Plane 0's row stride in pixels from an Arm gralloc handle, or 0 with a
+- * reason. A handle is taken for one only if its counts, magic and
+- * dimensions are right, and for a buffer we can use only if it is a single
+- * uncompressed layer that starts at offset 0 and holds the image: anything
+- * else would be read with the wrong layout.
+- */
++/* The int array of a native_handle_t: past the three counts and the fds. */
++#define ARM_GRALLOC_INTS(h)  ((h) + 3 + (h)[1])
+ static uint32_t
+ arm_gralloc_stride_px(const int *handle, const struct mali_image *image, const char **why)
+ {
+    const unsigned bpp = util_format_get_blocksize(image->planes[0].format);
+-   struct arm_gralloc_handle h;
++   const unsigned w = image->vk.extent.width;
++   const unsigned h = image->vk.extent.height;
++   unsigned num_ints;
++   const int *ints;
++   const char *last_why = NULL;
+ 
+    if (handle[0] != ARM_GRALLOC_VERSION || handle[1] != ARM_GRALLOC_NUM_FDS ||
+        handle[2] < ARM_GRALLOC_NUM_INTS || handle[2] > 256) {
+       *why = "the handle is not an Arm gralloc 4 handle (its fd and int counts)";
+       return 0;
+    }
+-   memcpy(&h, handle, sizeof(h));
+-   if (h.magic != ARM_GRALLOC_MAGIC) {
++   ints = ARM_GRALLOC_INTS(handle);
++   num_ints = (unsigned)handle[2];
++
++   if (ints[0] != ARM_GRALLOC_MAGIC) {
+       *why = "the handle is not an Arm gralloc 4 handle (its magic)";
+       return 0;
+    }
+-   if (h.width != (int)image->vk.extent.width || h.height != (int)image->vk.extent.height ||
+-       h.layer_count > 1) {
++   if ((unsigned)ints[1] != w || (unsigned)ints[2] != h) {
+       *why = "the handle's size disagrees with the image";
+       return 0;
+    }
+-   if (h.alloc_format.modifiers) {
+-      *why = "gralloc allocated a compressed or tiled buffer";
+-      return 0;
+-   }
+-   const uint32_t pitch = h.plane[0].byte_stride;
+-   if (h.plane[0].offset || !pitch || pitch % bpp ||
+-       pitch < (uint64_t)image->vk.extent.width * bpp ||
+-       h.plane[0].alloc_height < image->vk.extent.height ||
+-       (h.size > 0 && (uint64_t)pitch * image->vk.extent.height > (uint32_t)h.size)) {
+-      *why = "the handle's plane 0 does not describe a linear buffer that holds the image";
+-      return 0;
++
++   /*
++    * N = 1 first (RK3562/RK3566, what this fallback was written for), then
++    * N = 2 so the RK3576 keeps working. A layout is accepted only if its
++    * plane 0 is linear, starts at offset 0 and covers the whole image, so a
++    * wrong N cannot quietly yield a plausible-looking stride.
++    */
++   for (unsigned n = 1; n <= 2; n++) {
++      const unsigned mod = 10 + n;      /* alloc_format.modifiers */
++      const unsigned pl0 = 11 + n;      /* plane[0].offset */
++      uint32_t pitch, size;
++
++      if (pl0 + 13 > num_ints)
++         continue;
++      if (ints[mod] != 0) {
++         last_why = "gralloc allocated a compressed or tiled buffer";
++         continue;
++      }
++      pitch = (uint32_t)ints[pl0 + 1];
++      size = (uint32_t)ints[pl0 + 12];
++      if (ints[pl0] != 0 || !pitch || pitch % bpp ||
++          pitch < (uint64_t)w * bpp ||
++          (uint32_t)ints[pl0 + 3] < h ||
++          (size > 0 && (uint64_t)pitch * h > size)) {
++         last_why = "the handle's plane 0 does not describe a linear buffer that holds the image";
++         continue;
++      }
++      return pitch / bpp;
+    }
+-   return pitch / bpp;
++
++   *why = last_why ? last_why : "no readable plane 0 in the handle";
++   return 0;
+ }
+ 
+ VkResult
