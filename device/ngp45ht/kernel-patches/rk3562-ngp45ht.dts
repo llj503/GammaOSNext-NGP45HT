@@ -155,28 +155,86 @@
 		keyup-threshold-microvolt = <1800000>;
 		poll-interval = <100>;
 
+		/*
+		 * 这是同一根 ADC 线上的电阻梯。阈值越小离 GND 越近，
+		 * 而按键在梯子上的顺序是固定的（硬件焊死的），所以
+		 * 「哪个阈值对应哪个键」必须照原厂 EmuELEC 的 DTS 抄，
+		 * 猜错就会 VOLUME_UP 与 VOLUME_DOWN 对调。
+		 *
+		 * EE 的值：vol-up 300000 / vol-down 17000。
+		 * 我们之前写成 vol-up 17000 / vol-down 300000 —— 正好反了，
+		 * 表现为「按加号变小声、按减号变大声」。
+		 *
+		 * EE:
+		 *   vol-up-key   = 0x493e0 = 300000
+		 *   vol-down-key = 0x04268 =  17000
+		 */
 		vol-up-key {
 			label = "volume up";
 			linux,code = <KEY_VOLUMEUP>;
-			press-threshold-microvolt = <17000>;
+			press-threshold-microvolt = <300000>;
 		};
 
 		vol-down-key {
 			label = "volume down";
 			linux,code = <KEY_VOLUMEDOWN>;
-			press-threshold-microvolt = <300000>;
+			press-threshold-microvolt = <17000>;
 		};
 
+		/*
+		 * menu-key 发的是 KEY_MUTE(113)，不是 KEY_MENU(139)。
+		 * 原厂也是 KEY_MUTE（0x71），adc-keys.kl 里再翻译成 MENU。
+		 * 名字虽叫 "menu"，物理上就是机身那颗 M 键。
+		 */
 		menu-key {
 			label = "menu";
 			linux,code = <KEY_MUTE>;
 			press-threshold-microvolt = <600000>;
 		};
 
+		/*
+		 * back-key 发 KEY_ESC(1)，adc-keys.kl 里翻译成 BACK。
+		 * 物理上是机身那颗返回键。
+		 */
 		back-key {
 			label = "back";
 			linux,code = <KEY_ESC>;
 			press-threshold-microvolt = <980000>;
+		};
+	};
+
+	/*
+	 * 机身状态指示灯 —— 交给内核 leds-gpio 驱动管理。
+	 *
+	 * 为什么要在 DTS 里显式建节点，而不是让 rk817 硬件自己亮：
+	 *   5.10 的 rk817 驱动完全不碰这三根脚，芯片里也没有"充电点灯"
+	 *   的硬件状态机。所以灯到底亮不亮，完全取决于引脚电平由谁负责：
+	 *     - 没人管 + 浮空       -> 灯不亮（删掉 pinctrl 后的表现）
+	 *     - pinctrl 上拉        -> 灯常亮，息屏也亮（最初的表现）
+	 *   两者都不对。正确做法是把控制权明确交给 leds-gpio，再由用户态
+	 *   /vendor/bin/ngp-powerled 按充电状态点亮对应的那一颗。
+	 *
+	 * 默认状态 default-state = "off"：开机一瞬间到用户态接管之前，
+	 * 灯是灭的，不会闪一下。
+	 *
+	 * GPIO_ACTIVE_HIGH：实测高电平点亮（gpio 直接拉电平验证过）。
+	 * label 用 charge-red / charge-blue，用户态按名字找，别改成别的。
+	 */
+	ngp_status_led: ngp-status-led {
+		compatible = "gpio-leds";
+
+		charge-red {
+			label = "charge-red";
+			gpios = <&gpio3 RK_PC2 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+			linux,default-trigger = "none";
+		};
+
+		charge-blue {
+			label = "charge-blue";
+			gpios = <&gpio3 RK_PC1 GPIO_ACTIVE_HIGH>;
+			default-state = "off";
+			linux,default-trigger = "none";
 		};
 	};
 };
@@ -488,6 +546,11 @@
 &rk817 {
 	battery {
 		compatible = "rk817,battery";
+		/*
+		 * 21-point OCV table in mV, from the vendor tree.  Monotonic by
+		 * construction -- rk817_bat_vol_to_soc() walks it with a binary
+		 * search, so a non-sorted table silently returns wrong SoC.
+		 */
 		ocv_table = <3500 3539 3608 3694 3767 3806 3829 3844 3856 3863 3869 3882 3930 4003 4010 4023 4033 4045 4059 4070 4171>;
 		design_capacity = <3791>;
 		design_qmax = <4000>;
@@ -499,17 +562,91 @@
 		zero_algorithm_vol = <3950>;
 		max_soc_offset = <60>;
 		monitor_sec = <5>;
+
+		/*
+		 * sample_res is the current-sense resistor value in 10 mOhm
+		 * units: 10 => 100 mOhm.  Getting this wrong scales current_now
+		 * (and therefore everything derived from it) by 2x or 0.5x.
+		 */
 		sample_res = <10>;
+
+		/*
+		 * bat_res: 电池内阻，单位 mOhm，直接参与 SoC 换算：
+		 *     ocv_voltage = voltage_avg - (current_avg * bat_res) / 1000
+		 * 驱动拿它把带载的端电压回算成开路电压，再去查 ocv_table。
+		 *
+		 * 缺这一项时驱动回落到 DEFAULT_BAT_RES = 135 mOhm。本机典型
+		 * 放电电流约 480 mA，135 与 127 差 8 mOhm 只值 ~4 mV，不大；
+		 * 真正的问题在 next 一条注释里说的 SoC 归零算法。
+		 *
+		 * 127 取自原厂 EmuELEC 的 rk3562-ngp45ht.dtb（0x7f）。
+		 * 之前自估的 80 已按「以 EE 为准」的要求改掉。
+		 */
+		bat_res = <127>;
+
+		/*
+		 * energy_mode 0 = report SoC straight from the OCV lookup.
+		 * Mode 1 lets the driver slow the gauge down near empty so the
+		 * last few percent last longer, which trades accuracy for
+		 * runtime -- wrong call for a handheld whose whole point is a
+		 * trustworthy number on screen.
+		 */
+		energy_mode = <0>;
+
+		/*
+		 * Reserve SoC kept back once the "zero algorithm" fires, in
+		 * whole percent (driver multiplies by 1000).  The vendor value
+		 * for this pack is 10.
+		 */
+		zero_reserve_dsoc = <10>;
+
+		/*
+		 * fb_temperature is the "flat" temperature in degrees C that the
+		 * driver substitutes when the NTC reads outside its valid window;
+		 * 25 keeps a nonsense reading from pinning the charger.
+		 */
+		fb_temperature = <25>;
+
 		virtual_power = <0>;
 		dc_det_gpio = <&gpio3 RK_PA7 GPIO_ACTIVE_HIGH>;
-		pinctrl-names = "default";
-		pinctrl-0 = <&ngp_charge_led_gpio>;
-		charge_green_gpio = <&gpio3 RK_PC1 GPIO_ACTIVE_HIGH>;
+
+		/*
+		 * 这三个属性只是名字占位，5.10 的 rk817_battery.c /
+		 * rk817_charger.c 完全不解析它们（全树 grep 过，除 DTS 外零引用），
+		 * rk817 芯片本身也没有"按 CHG_STS 点灯"的硬件逻辑。
+		 *
+		 * 真正的驱动在下面的 ngp-status-led 节点（leds-gpio），
+		 * 用户态 ngp-powerled 按充电状态去点。
+		 *
+		 * 历史教训（别走回头路）：
+		 *   1) 早先这里挂了 pinctrl-0 = <&ngp_charge_led_gpio>，那组 pin
+		 *      是 RK_FUNC_GPIO + pcfg_pull_up，等于把 C1(蓝)/C2(红) 内部
+		 *      上拉。两根线被持续拉高 -> 状态灯一直亮，息屏也不灭。
+		 *      这就是「电源灯充电灯长期亮着」的直接原因。
+		 *   2) 把 pinctrl 整组删掉之后走另一个极端：引脚浮空、无人驱动，
+		 *      充电中红灯也不亮（2026-11-04 实测确认）。
+		 *
+		 * 实测引脚语义（syskbd gpio 直接拉电平验证）：
+		 *   GPIO3_C1 (gpio-113) 高电平 -> 蓝灯亮
+		 *   GPIO3_C2 (gpio-114) 高电平 -> 红灯亮
+		 *   GPIO3_C3 (gpio-115) 无可见效果（未贴片或另有用途）
+		 */
+		charge_blue_gpio = <&gpio3 RK_PC1 GPIO_ACTIVE_HIGH>;
 		charge_red_gpio = <&gpio3 RK_PC2 GPIO_ACTIVE_HIGH>;
+		charge_display_gpio = <&gpio3 RK_PC3 GPIO_ACTIVE_HIGH>;
 	};
 
 	charger {
 		compatible = "rk817,charger";
+
+		/*
+		 * 下面四个数值和原厂 EmuELEC 的 DTS 完全一致：
+		 *   4500 = 0x1194  min_input_voltage
+		 *   2500 = 0x09c4  max_input_current / max_chrg_current
+		 *   4350 = 0x10fe  max_chrg_voltage
+		 *    300 = 0x012c  chrg_finish_cur
+		 * 改之前请先对一遍 EE 那份，别凭手感调。
+		 */
 		min_input_voltage = <4500>;
 		max_input_current = <2500>;
 		max_chrg_current = <2500>;
@@ -517,9 +654,30 @@
 		chrg_term_mode = <0>;
 		chrg_finish_cur = <300>;
 		virtual_power = <0>;
+
+		/*
+		 * sample_res / power_dc2otg / otg5v_suspend_enable 这三项 EE
+		 * 没写，但驱动在缺项时会：
+		 *   sample_res        -> SAMPLE_RES_10MR (10)   与这里同值
+		 *   power_dc2otg      -> 0                     与这里同值
+		 *   otg5v_suspend_enable -> 1                   与这里同值
+		 * 即行为等价。保留显式声明，只为避免 DTS 缺项时驱动打 dev_err
+		 * 把启动日志刷花。
+		 */
+
+		/* Same 10 x 10 mOhm sense resistor as the battery gauge. */
+		sample_res = <10>;
+
+		/*
+		 * power_dc2otg: 0.  When set, the DC input path is allowed to
+		 * feed the OTG 5 V rail while USB is in host mode.  This board
+		 * powers its OTG port from a dedicated vcc5v0-usb-otg switch, so
+		 * letting the charger duplicate that would fight the regulator.
+		 */
+		power_dc2otg = <0>;
+
 		dc_det_adc = <0>;
 		dc_det_gpio = <&gpio3 RK_PA7 GPIO_ACTIVE_HIGH>;
-		charge_display_gpio = <&gpio3 RK_PC3 GPIO_ACTIVE_HIGH>;
 		otg5v_suspend_enable = <1>;
 		extcon = <&u2phy>;
 		gate_function_disable = <1>;
@@ -600,7 +758,14 @@
 	status = "disabled";
 };
 
-/* The stick-LED MCU UART would take PD2, which is a gamepad button. */
+/*
+ * The stick-LED MCU UART would take PD2, which is a gamepad button.
+ *
+ * This board's RGB rings are NOT on UART1 -- they are WS2812 chains on SPI0
+ * (see &spi0 at the bottom of this file).  The RG52 Mini / RG43H Pro use a
+ * byte-oriented MCU on uart1 instead; copying that over to this board was
+ * wrong and produced a dead port plus a stolen button.  Keep it off.
+ */
 &uart1 {
 	status = "disabled";
 };
@@ -888,17 +1053,40 @@
 		};
 	};
 
-	charge-led {
-		ngp_charge_led_gpio: ngp-charge-led-gpio {
-			rockchip,pins =
-				<3 RK_PC1 RK_FUNC_GPIO &pcfg_pull_up>,
-				<3 RK_PC2 RK_FUNC_GPIO &pcfg_pull_up>;
-		};
-	};
+	/*
+	 * 原来这里有一组 charge-led 的 pin 配置：
+	 *
+	 *     ngp_charge_led_gpio: rockchip,pins =
+	 *         <3 RK_PC1 RK_FUNC_GPIO &pcfg_pull_up>,
+	 *         <3 RK_PC2 RK_FUNC_GPIO &pcfg_pull_up>;
+	 *
+	 * 它把状态灯的两根线（C1 蓝 / C2 红）配成内部上拉，等于一直给
+	 * LED 供电，于是「电源灯充电灯长期亮着，息屏也亮着」。
+	 *
+	 * 原厂 EmuELEC 的 DTS 里压根没有这组 pin，这些脚交给 rk817 硬件
+	 * 自己按 CHG_STS 驱动即可。整组删掉，别再加回来。
+	 */
 
 	lcd {
 		ngp_lcd_pwren: ngp-lcd-pwren {
 			rockchip,pins = <0 RK_PB0 RK_FUNC_GPIO &pcfg_pull_up>;
+		};
+	};
+
+	/*
+	 * 摇杆灯（WS2812）走 SPI0，只要 MOSI + CLK 两根线。
+	 * 引脚取自 AURKNIX/ROCKNIX 同款设备的 quirk（spi0m1-pins-ngp45h）：
+	 * GPIO3_B5 与 GPIO3_B4。
+	 *
+	 * 故意不接 CS：AURKNIX 那组里的 CS 是 GPIO3_B7，而这根脚在本机同时是
+	 * i2c4（板上挂 rk628 HDMI 桥）的 SDA —— spi 一抢，i2c-4 就注册不上，
+	 * HDMI 直接废掉。WS2812 根本没有 CS，所以不要它。
+	 */
+	spi0-ngp45h {
+		ngp_spi0_pins: spi0m1-pins-ngp45h {
+			rockchip,pins =
+				<3 RK_PB5 4 &pcfg_pull_none>,
+				<3 RK_PB4 4 &pcfg_pull_none>;
 		};
 	};
 
@@ -910,5 +1098,37 @@
 		usb_otg_pwren: usb-otg-pwren {
 			rockchip,pins = <3 RK_PB0 RK_FUNC_GPIO &pcfg_pull_none>;
 		};
+	};
+};
+
+/* ---- Stick RGB rings: WS2812 chains on SPI0 ----------------------------- *
+ *
+ * The two rings are WS2812 (not an MCU), eight LEDs per ring, driven by
+ * bit-banging them onto the SPI MOSI line at 8 MHz: one SPI byte per WS2812
+ * bit, 0xC0 = '0', 0xFC = '1', GRB order.  Userspace is ws2812-common from
+ * ROCKNIX/AURKNIX, invoked as
+ *     ws2812-common --device /dev/spidev0.0 <mode>
+ * via /usr/bin/analog_sticks_ledcontrol_single, started by
+ * ngp-stickled.service.  spidev is therefore mandatory, not optional: with
+ * SPI0 off there is no /dev/spidev0.0 and the rings stay dark no matter what
+ * userspace does.
+ *
+ * spi-max-frequency must stay 8000000 -- it *is* the WS2812 bit clock
+ * (1 byte = 1 bit), so a different rate changes the waveform and the strips
+ * either miss frames or latch garbage.
+ *
+ * No CS and no MISO: WS2812 has neither, and GPIO3_B7 (the CS an AURKNIX
+ * quirk would use) is i2c4's SDA on this board -- SPI claiming it kills
+ * i2c-4 and with it the RK628D HDMI bridge.
+ */
+&spi0 {
+	status = "okay";
+	pinctrl-names = "default";
+	pinctrl-0 = <&ngp_spi0_pins>;
+
+	spi_dev@0 {
+		compatible = "rockchip,spidev";
+		reg = <0>;
+		spi-max-frequency = <8000000>;
 	};
 };

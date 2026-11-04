@@ -6,9 +6,14 @@
 | --- | --- | --- | --- | --- |
 | `NgpIme.apk` | `com.llj.ngpime` | `com.llj.ngpime/.NgpImeService` | 1,131,101 | `5cbaf7a244610c150970881e45415ef6` |
 | `LANGOS.apk` | `com.retrofront` | `com.retrofront/.NativeActivity` | 3,916,420 | `c00695275239213d18270a605055f0d0` |
+| `JoystickLedPicker-zh.apk` | `com.gammaos.joystickled` | `com.gammaos.joystickled/.MainActivity` | 3,488,534 | `27d4fe002502c0356b13529fb3505478` |
 
 `langos.jks` 是用来重签 LANGOS 的自签名密钥库（alias `langos`，口令都是 `ngp45ht`）。
 **换签名后必须整卡刷入** —— 详见 `../langos/README.md` 的重打包一节。
+
+`JoystickLedPicker-zh.apk` 不覆盖系统里的原件，而是**运行时 bind mount** 盖上去
+（原因见下面「摇杆灯设置汉化」一节），所以它落在 `/vendor/etc/ngp/` 而不是
+`/system/app/`。用于重签它的私钥 `ngp-app.jks` 不入库（见 `.gitignore`）。
 
 ## NgpIme —— 手柄拼音输入法
 
@@ -59,6 +64,76 @@ rom_root，会误弹选择框（开机必现）；脚本等 public 卷挂载完�
 > `install-existing`）会把 SAF 的持久化授权一起清掉 —— `/data/system/urigrants.xml`
 > 变空，`saf_prefs.xml` 里的 tree URI 还在但没权限了，于是又弹选择框。
 > 授权没法用 adb 直接补，只能手柄再选一次。
+
+## 摇杆灯设置汉化（JoystickLedPicker-zh.apk）
+
+「设置 → 掌机设置 → joystick led」打开的就是 `com.gammaos.joystickled`
+（`/system/app/JoystickLedPicker/`）。它本来自带 `values-zh-rCN`，所以界面
+绝大多数已经是中文 —— 实测只有右上角那个预览标签是英文。
+
+原因是它拼在 Kotlin 代码里，没走资源：
+
+```kotlin
+"Preview (" + String.format("#%06X", color) + ")"
+```
+
+改法是给默认值与 `values-zh-rCN` 各加一条 `preview_label`（默认 `Preview`、
+中文 `预览`），把这句换成 `getString(R.string.preview_label)`。新增字符串的
+资源 ID 在 `res/values/public.xml` 里固定成 `0x7f0f00a1`（紧跟 `title_joystick_led`
+的 `0x7f0f00a0`），smali 里直接引用这个 ID。
+
+### 为什么不直接换 `/system/app` 里的 apk
+
+`/system` 是 `mmcblk1p4` 以 **ro** 挂载的，而且 `mount -o remount,rw /`
+会直接失败：
+
+```
+'/dev/block/by-name/system' is read-only
+```
+
+不是 verity（`ro.boot.veritymode=disabled`）、也不是 SELinux
+（`getenforce` = `Permissive`）、块设备 `ro=0`。真因是 **ext4 超级块带着
+错误标志**，内核因此强制只读：
+
+```
+EXT4-fs (mmcblk1p4): error count since last fsck: 27
+EXT4-fs (mmcblk1p4): initial error at time 1792543475: ext4_find_extent:928: inode 4336
+```
+
+要改只能先 `e2fsck -y` 修超级块再重启，风险与收益不成比例。
+
+另外 `pm install -r` 也走不通：系统版 apk 用的是 AOSP 公共测试密钥
+（`CN=Android, android@android.com`，序列号 `b3998086d056cffa`，
+SHA-256 `C8:A2:E9:BC:...`），私钥不在手上，自签的包装上去签名对不上。
+
+所以走 **bind mount 单个文件**，跟 `azahar-nano-zh` 是同一路数：
+
+```
+/vendor/etc/ngp/JoystickLedPicker-zh.apk
+        ↓ mount --bind
+/system/app/JoystickLedPicker/JoystickLedPicker.apk
+```
+
+`ngp-fixup.sh` 第 ⑩ 段在 `sys.boot_completed=1` 时做这件事（那时 `/vendor`
+早已挂载），bind 成功后再 `am force-stop` 一次，让下次启动重新 mmap 新 apk。
+源文件缺失或 bind 失败都保持原版，不会影响开机。
+
+**不需要动 `oat/`**：apk 内容变了，`/data/dalvik-cache` 里的旧产物会自动失效重建。
+
+### 复现这套改动
+
+```bash
+java -jar apktool.jar d -f -o decoded JoystickLedPicker.apk
+# 改 decoded/res/values/strings.xml、values-zh-rCN/strings.xml、values/public.xml
+# 改 decoded/smali/com/gammaos/joystickled/MainActivity.smali 里 updatePreviewLabel
+java -jar apktool.jar b decoded -o unsigned.apk
+zipalign -f -p 4 unsigned.apk aligned.apk
+apksigner sign --ks ngp-app.jks --ks-pass pass:ngp45ht --ks-key-alias ngpapp \
+    --out JoystickLedPicker-zh.apk aligned.apk
+```
+
+原版与改后逐字节对照之外，要在机器上 `am start` 截图确认 ——
+只对比文件 md5 不能证明 UI 文案生效。
 
 ## 重新取这两个 APK
 

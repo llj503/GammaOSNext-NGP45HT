@@ -1,0 +1,19 @@
+# NGP45HT: 机身返回键「短按 BACK / 长按退出游戏」守护。
+#
+# adc-keys 驱动只报 KEY_ESC 的按下/松开，不认识长按；短按的 BACK 由
+# keylayout 正常发出，本服务只做长按计时 + force-stop，不拦截任何事件。
+#
+# 监听 /dev/input/event2 (adc-keys-ngp)。该节点不会被 gammapad re-hid，
+# event 号稳定，不像物理手柄那样会消失。
+service ngp_navkey /vendor/bin/ngp-navkey.sh
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0
+
+on property:sys.boot_completed=1
+    start ngp_navkey
+
+# getevent 偶尔会因输入设备重新注册而退出，掉了就拉起来
+on property:init.svc.ngp_navkey=stopped
+    start ngp_navkey

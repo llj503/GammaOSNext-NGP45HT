@@ -1,0 +1,23 @@
+# NGP45HT 机身状态指示灯守护
+#
+# 详见 ngp-powerled.sh 顶部注释。核心事实：红/蓝两颗灯挂在 GPIO3_C2/C1，
+# DTS 把这两根脚交给 leds-gpio 注册成 /sys/class/leds/charge-red|charge-blue，
+# 由本服务按充电状态点亮 —— rk817 芯片和驱动都不管这两根脚。
+#
+# late_start + boot_completed：太早起来 /sys/class/power_supply 还没建好，
+# 且此时 zygote 已经在跑，不会拖慢开机。
+#
+# 常驻循环，进程退出由 init 自动拉起（on property:init.svc.ngp_powerled=stopped）。
+# 脚本自身对 TERM 做了 trap，会先把两颗灯关掉再退出，所以手动 stop 也不会留灯。
+
+service ngp_powerled /system/bin/sh /vendor/bin/ngp-powerled.sh
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0
+
+on property:sys.boot_completed=1
+    start ngp_powerled
+
+on property:init.svc.ngp_powerled=stopped
+    start ngp_powerled

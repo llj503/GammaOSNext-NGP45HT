@@ -1,0 +1,23 @@
+# 摇杆灯（WS2812 on SPI0）—— 接管「设置 → 掌机设置 → joystick led」。
+#
+# 上游 /system/bin/rg52-ledd 只认 UART1（RG52Mini 的接线），本机灯带在
+# SPI0，它开机就放弃了（logcat 里 "no /dev/ttyS1 ... LEDs unavailable"）。
+# 结果就是设置界面写的 persist.gammaos.rgb.* 没人读，调了没反应。
+# 这个服务补上那一环：监听属性 → 推 WS2812 帧。
+#
+# 常驻的理由：设置是随时改的，必须实时响应；只开机推一帧的话，
+# 用户调完得重启才看得到，等于还是「调节无效」。
+# 空转成本极低（每 500ms 一次 getprop，参数不变就不碰 SPI）。
+
+service ngp_stickled /system/bin/sh /vendor/bin/ngp-stickled.sh watch
+    class late_start
+    user root
+    group root system
+    # spidev0.0 是 0600 root:root，必须 root 才打得开
+    seclabel u:r:shell:s0
+
+on property:sys.boot_completed=1
+    start ngp_stickled
+
+on property:init.svc.ngp_stickled=stopped
+    start ngp_stickled

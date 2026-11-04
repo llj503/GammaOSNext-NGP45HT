@@ -501,36 +501,95 @@ if [ -f "$AZH_CFG" ] &&
         log -t $TAG "azahar zh: config sections migrated (bak-en kept)"
 fi
 
-# ⑩ gammapad 按键重映射：菜单键(BTN_MODE 316) -> BACK(158)
-# 默认 gammapad 把 316 映射成 172(KEY_HOMEPAGE)，按下就直接回桌面，
-# 游戏里根本弹不出菜单。改成 BACK 后：LANGOS/桌面 里 BACK 也是回上一层，
-# 行为不变；NetherSX2 收到 BACK 会弹暂停菜单。
-# persist.* 存在 /data/property，刷机后丢失，所以每次开机都要补一遍。
+# ⑩ 摇杆灯设置（JoystickLedPicker）残留英文字符串汉化
+#
+# com.gammaos.joystickled 本身带 values-zh-rCN，界面绝大多数已经是中文，
+# 唯独预览标签是拼在代码里的："Preview (" + "#RRGGBB" + ")"。已改成从
+# 资源取 preview_label（中文「预览」），见 joystickled-zh/ 下的 apktool 工程。
+#
+# 阻断点跟 azahar 一样：/system 是 /dev/block/mmcblk1p4 以 ro 挂载（ext4
+# 超级块带错误标志，remount rw 无效），只能 bind mount 单个文件盖上去。
+# 这里只 bind 一个 apk 文件，不碰 zipalign/oat —— 首次启动 dalvik 会自己
+# 重新生成 oat 到 /data/dalvik-cache，原 /system/app/.../oat 里的旧产物
+# 因为 apk 内容变了会自动失效。
+#
+# 源文件不存在、或 dst 不存在（老版本没这个 app）都保持原样，不影响开机。
+LEDAPK_SRC=/vendor/etc/ngp/JoystickLedPicker-zh.apk
+LEDAPK_DST=/system/app/JoystickLedPicker/JoystickLedPicker.apk
+if [ -f "$LEDAPK_SRC" ] && [ -f "$LEDAPK_DST" ]; then
+    if grep -q " $LEDAPK_DST " /proc/self/mountinfo 2>/dev/null; then
+        log -t $TAG "ledpicker zh: already bound"
+    elif mount --bind "$LEDAPK_SRC" "$LEDAPK_DST" 2>/dev/null; then
+        log -t $TAG "ledpicker zh: bind ok ($(stat -c %s "$LEDAPK_DST" 2>/dev/null) B)"
+        # 换掉 apk 后 PackageManager 仍持有旧的资源缓存，重启 zygote 代价太大，
+        # 直接 force-stop 即可 —— 下次启动会重新 mmap 新 apk。
+        am force-stop com.gammaos.joystickled 2>/dev/null
+    else
+        log -t $TAG "ledpicker zh: bind FAILED, keeping stock apk"
+    fi
+fi
+
+# ⑩a 摇杆灯（WS2812 on SPI0）自检
+#
+# 上游 /system/bin/rg52-ledd 只认 UART1（RG52Mini 的接线），本机灯带在
+# SPI0，它开机就放弃：
+#     rg52-ledd: no /dev/ttyS1: UART1 is not enabled in the device tree,
+#                LEDs unavailable
+# 于是「设置 → 掌机设置 → joystick led」写的 persist.gammaos.rgb.* 没人读，
+# 表现为「调节无效」。ngp_stickled 服务（/vendor/bin/ngp-stickled.sh watch）
+# 负责把它接过来：每 500ms 比对一次属性，变了就推一帧 WS2812。
+#
+# 这里只做存在性与可用性自检，真正的驱动由 init 的服务管。
+# 不要在这里 start 服务 —— fixup 是 oneshot，抢在 spidev 就绪前启动会失败。
+if [ ! -x /vendor/bin/ws2812-common ]; then
+    log -t $TAG "stickled: WARN /vendor/bin/ws2812-common missing"
+elif [ ! -x /vendor/bin/ngp-stickled.sh ]; then
+    log -t $TAG "stickled: WARN /vendor/bin/ngp-stickled.sh missing"
+elif [ ! -e /dev/spidev0.0 ]; then
+    log -t $TAG "stickled: WARN /dev/spidev0.0 missing (SPI0 not enabled in DTB)"
+else
+    log -t $TAG "stickled: tools + spidev ok"
+fi
+
+# ⑪ gammapad 按键重映射：手柄 Guide 键(BTN_MODE 316) 保持 HOME，不改成 BACK
+#
+# 历史包袱说明（这一整段就是为了收拾它）：
+#   早先这里把 316 重映射成 158(BACK)，理由是「NetherSX2 只认 BACK」。
+#   但那颗键是手柄区的 Guide/HOME 键，不是机身那颗 M 键；M 键走的是
+#   adc-keys（KEY_MUTE 113），根本不经过 gammapad。
+#   结果就是两套东西同时抢 BACK 语义：
+#     - 316:158    手柄 Guide 键 -> BACK
+#     - 704:158    BTN_TRIGGER_HAPPY1 -> BACK（swap_start_home 打开时
+#                  START 会被改成这个码，等于连 START 也变 BACK）
+#   机身 M 键又各走各的（原来翻成 MENU，模拟器不认）。
+#   用户感受到的就是「M 键有时返回、有时首页、有时毫无作用」。
+#
+# 现在统一成：
+#   手柄 Guide 键(BTN_MODE) -> HOME        （keylayout 里 key 316 HOME）
+#   机身 M 键(KEY_MUTE 113)  -> BACK        （adc-keys.kl 里 key 113 BACK）
+#   机身返回键(KEY_ESC 1)     -> BACK 短按 / 长按退出（ngp-navkey.sh）
+# 也就是把 remap 里所有 316/704 条目清掉，还给 keylayout 决定。
 CUR_RM=$(getprop persist.gammaos.gamepad.remap_btn)
 case "$CUR_RM" in
-    *316:158*)
-        : # 已经是目标值
-        ;;
-    *)
-        # 先把已有的 316:x 摘掉，避免出现两条
-        REST=$(echo "$CUR_RM" | tr ',' '\n' | grep -v '^316:' | tr '\n' ',' | sed 's/,$//')
+    *316:*|*704:*)
+        # 摘掉 316:x 与 704:x，保留其它条目
+        REST=$(echo "$CUR_RM" | tr ',' '\n' | grep -vE '^(316|704):' | tr '\n' ',' | sed 's/,$//')
         if [ -n "$REST" ]; then
-            setprop persist.gammaos.gamepad.remap_btn "316:158,$REST"
+            setprop persist.gammaos.gamepad.remap_btn "$REST"
         else
-            setprop persist.gammaos.gamepad.remap_btn "316:158"
+            setprop persist.gammaos.gamepad.remap_btn ""
         fi
-        log -t $TAG "gamepad remap: menu key -> BACK (now: $(getprop persist.gammaos.gamepad.remap_btn))"
+        log -t $TAG "gamepad remap: dropped 316/704 overrides (Guide stays HOME, M key is on adc-keys)"
         # gammapad 只在启动时读属性，改完要重启它
         # 注意：重启后物理手柄节点的 evdev 名字会消失是正常现象（它 re-hid 成虚拟手柄），
-        #      不等同于「手柄坏了」，判据仍用 getevent -i | grep retrogame_joypad 之外的
-        #      虚拟设备 "Xbox Wireless Controller" 是否在。
+        #      不等同于「手柄坏了」，判据看虚拟设备 "Xbox Wireless Controller" 是否在。
         setprop ctl.restart gammapad 2>/dev/null
         sleep 2
-        log -t $TAG "gammapad restarted for remap"
+        log -t $TAG "gammapad restarted after remap cleanup"
         ;;
 esac
 
-# ⑪ 预装 LANGOS 修改版（PS2 走 NetherSX2 + N64/Dreamcast 映射修正）+ 预置 PS2 配置
+# ⑫ 预装 LANGOS 修改版（PS2 走 NetherSX2 + N64/Dreamcast 映射修正）+ 预置 PS2 配置
 # apk 放 /vendor/etc/ngp/，不碰 system 分区：LANGOS 是 system app，
 # 直接换 /system/app 里的 apk 要过 verity 和包签名一致性，走 pm install -r
 # 装成 /data/app 的更新版最省事（签名和系统版同为 langos.jks，能覆盖）。

@@ -1,5 +1,23 @@
-# NGP45HT adc-keys — SARADC ladder (adc-keys-ngp node)
+# NGP45HT 机身侧键 —— SARADC 电阻梯（DTS 节点 adc-keys-ngp）
+#
+# 内核侧（rk3562-ngp45ht.dts）上报的原始码：
+#     KEY_ESC(1)        <- back-key    物理：机身返回键
+#     KEY_MUTE(113)     <- menu-key    物理：机身 M 键（左摇杆与方向键之间的独立小键）
+#     KEY_VOLUMEUP(115) / KEY_VOLUMEDOWN(114)
+#
+# 这里负责把内核码翻译成 Android KeyEvent。
+#
+# 为什么 M 键翻成 BACK 而不是 MENU：
+#   原厂 EmuELEC 的 DTS 里这颗键叫 KEY_MUTE；到 Android 若照着翻成 MENU，
+#   NetherSX2 / RetroArch 这类只认 BACK 的模拟器收不到任何东西 —— 表现
+#   就是「按 M 键毫无作用」。翻成 BACK 后，模拟器能弹暂停/设置菜单，
+#   LANGOS 与系统 UI 里 BACK 也仍然是「回上一层」，语义一致不打架。
+#
+# 返回键同样是 BACK（短按）。长按退出游戏由 userspace 守护
+# /vendor/bin/ngp-navkey.sh 负责，因为 adc-keys 驱动只报按下/松开，
+# 不认识长按 —— 详见那个脚本头部的说明。
+
+key 1     BACK
+key 113   BACK
 key 114   VOLUME_DOWN
 key 115   VOLUME_UP
-key 113   MENU
-key 1     BACK

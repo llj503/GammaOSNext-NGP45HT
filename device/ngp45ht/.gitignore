@@ -1,0 +1,4 @@
+# 本地签名私钥，不入库
+# （apps/langos.jks 是团队共用的移植签名，必须保留入库）
+apps/ngp-app.jks
+ngp-app.jks
