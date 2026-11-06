@@ -34,6 +34,14 @@ v0.1.0 release，没改过。它是手柄优先的离线拼音输入法，10×4 
 具体改动与重打包方法见 `../langos/README.md`。原版 APK 的签名是
 `CN=LANGOS Patch`，私钥不可得，所以改动版用 `langos.jks` 重签。
 
+**v3.6（versionCode 22）在 3.5-emupick 基础上加了逐游戏核心切换**：
+详情页在“启动游戏”上方多一行“游戏核心”，按平台过滤（GBA 只列
+`mgba` / `gpsp` / `vba_next` / `vbam` / `skyemu`），选择按 ROM 路径保存。
+实现与实测见 `../../../doc/ngp45ht/LANGOS-core-picker.md`。
+APK 为 `LANGOS-3.6-core.apk`（3,920,516 字节，md5
+`efc852b11e11e41ea05de393474a63a9`）。v39 镜像里仍是 3.5-emupick，
+本改动留给下一个镜像。
+
 `ngp-fixup.sh` 每次开机做两件事：把 home 固定到它，以及给它
 `MANAGE_EXTERNAL_STORAGE`（扫 ROM 目录要用，内置到 system 后这条授权仍然要单独给）。
 
