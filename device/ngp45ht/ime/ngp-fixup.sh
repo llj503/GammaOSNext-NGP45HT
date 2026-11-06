@@ -17,6 +17,19 @@
 
 TAG=ngp-fixup
 
+# V38: 把汉化版 azahar-nano 提前 bind 上。原来的第 ⑨ 段在脚本末尾，
+# boot_completed 后如果用户很快点开 3DS，服务可能先用 /system 里的
+# 英文原版启动；之后再 bind 只影响新进程，当前会话菜单仍是英文。
+# 这里在脚本最前面先 bind 一次，后面的第 ⑨ 段会看到 already bound。
+AZH_SRC=/vendor/bin/azahar-nano-zh
+AZH_DST=/system/bin/azahar-nano
+if [ -f "$AZH_SRC" ] && [ -f "$AZH_DST" ]; then
+    if ! mount | grep -q " on $AZH_DST "; then
+        mount --bind "$AZH_SRC" "$AZH_DST" && \
+            log -t $TAG "azahar zh: early bind ok"
+    fi
+fi
+
 # 内置输入法：手柄拼音 ngp-pinyin（见 github.com/llj503/ngp-pinyin-ime）。
 # 镜像里放在 /system/app/NgpIme/NgpIme.apk，刷完即存在，不需要用户再装。
 NGP_IME=com.llj.ngpime/.NgpImeService
@@ -112,6 +125,21 @@ fi
 wm fixed-to-user-rotation enabled 2>/dev/null
 wm set-ignore-orientation-request true 2>/dev/null
 log -t $TAG "display rotation locked: fixed=$(dumpsys window 2>/dev/null | grep -o 'mFixedToUserRotation=[a-z]*' | head -n 1)"
+
+# ⓪c-2 V38: 关掉上游「唤醒时重插 HDMI」的兜底。
+#
+# RK3562 只有一个 VOP，而本机 RK628 的 HPD 在拔线后有时仍报 HDMI=1。
+# rg52-hdmi-rebind.sh 在每次唤醒都信 extcon，发现 HDMI=1 就把 VOP 从
+# 内屏抢回 HDMI；用户拔了线看到的就是「掌机也黑屏」。
+# ngp-hdmi-ratio.sh 现在自己负责安全切回内屏（并把 HDMI 接回来），
+# 这里必须把上游那条路关掉，否则两边互相打架。
+setprop persist.rg52.hdmi_rebind 0
+log -t $TAG "upstream hdmi rebind disabled (ngp-hdmi-ratio owns the VOP)"
+
+# V38: 3DS 固定走 DRM 直出。SurfaceFlinger 后端在电视上只会镜像
+# AzaharSf 的 Activity 层，azahar-nano 的游戏层不会进 HDMI，电视停在 loading。
+setprop persist.gammaos.azahar_nano.backend drm
+log -t $TAG "azahar backend locked to drm"
 
 # ⓪b 鼠标模式（gammapad）屏幕尺寸同步 —— 只做一次，不做常驻轮询。
 #
@@ -595,9 +623,18 @@ esac
 # 装成 /data/app 的更新版最省事（签名和系统版同为 langos.jks，能覆盖）。
 NGP_DIR=/vendor/etc/ngp
 if [ -f "$NGP_DIR/LANGOS.apk" ]; then
-    if dumpsys package com.retrofront 2>/dev/null | grep -q "codePath=/data/app"; then
-        : # 已经是更新版，不用重复装
+    # 判据必须是「内容是否一致」，不能是「codePath 在不在 /data/app」。
+    # 老逻辑只看路径 → 覆盖升级时 /data/app 里已有上一版，直接跳过安装，
+    # 新版 APK 永远装不上（v37 的 HDMI 5 列就这么失效过）。
+    # 这里逐字节比 md5；pm path 拿不到的（未安装/被禁用）视为不一致，走安装。
+    want=$(md5sum "$NGP_DIR/LANGOS.apk" 2>/dev/null | awk '{print $1}')
+    have=""
+    apk_path=$(pm path com.retrofront 2>/dev/null | sed -n 's/^package://p' | head -1)
+    [ -n "$apk_path" ] && have=$(md5sum "$apk_path" 2>/dev/null | awk '{print $1}')
+    if [ -n "$want" ] && [ "$want" = "$have" ]; then
+        : # 已是最新版，不用重复装
     else
+        log -t $TAG "langos: update $have -> $want"
         # 开机初期 pm 可能还没就绪，重试三次
         i=0
         while [ $i -lt 3 ]; do
@@ -609,6 +646,61 @@ if [ -f "$NGP_DIR/LANGOS.apk" ]; then
             sleep 5
         done
         [ $i -ge 3 ] && log -t $TAG "langos: install FAILED"
+    fi
+fi
+
+# ⑫b 模拟器改为「可卸载」（v39）
+#
+# 原先把 NetherSX2 放在 /vendor/app/ 由系统扫描安装 —— 那是 system app，
+# 玩家既卸不掉也换不了。现在 apk 放在 /vendor/etc/ngp/emulators/，
+# 由本段首次 pm install 成 /data/app，玩家在「应用」里能正常卸载。
+#
+# 卸载后不能又装回来。实测本机 `pm list packages -u` **不保留**卸载记录
+# （卸载后普通列表和 -u 列表都没有），所以只能自己记：首次装成功时打标记，
+# 以后发现「没装但有标记」= 玩家自己卸的，不再装。
+#
+# 玩家想恢复内置模拟器：删掉 /data/ngp/emu-installed/<包名> 再重启。
+EMU_DIR=$NGP_DIR/emulators
+EMU_MARK=/data/ngp/emu-installed
+mkdir -p "$EMU_MARK" 2>/dev/null
+install_emu() {
+    _pkg="$1"; _apk="$2"; _name="$3"
+    [ -f "$_apk" ] || return 0
+    _mark="$EMU_MARK/$_pkg"
+    if pm list packages 2>/dev/null | grep -qx "package:$_pkg"; then
+        _cur=$(pm path "$_pkg" 2>/dev/null | sed -n 's/^package://p' | head -1)
+        _want=$(md5sum "$_apk" 2>/dev/null | awk '{print $1}')
+        _have=""
+        [ -n "$_cur" ] && _have=$(md5sum "$_cur" 2>/dev/null | awk '{print $1}')
+        if [ -n "$_want" ] && [ "$_want" != "$_have" ]; then
+            pm install -r "$_apk" >/dev/null 2>&1 && \
+                log -t $TAG "$_name: upgraded to vendored build"
+        fi
+        : > "$_mark" 2>/dev/null
+        return 0
+    fi
+    if [ -f "$_mark" ]; then
+        log -t $TAG "$_name: user uninstalled, keep it uninstalled"
+        return 0
+    fi
+    if pm install "$_apk" >/dev/null 2>&1; then
+        : > "$_mark" 2>/dev/null
+        log -t $TAG "$_name: installed to /data/app (player can uninstall)"
+    else
+        log -t $TAG "$_name: install FAILED"
+    fi
+}
+install_emu xyz.aethersx2.android "$EMU_DIR/NetherSX2.apk" nethersx2
+
+# 3DS 内置前端（com.gammaos.azaharsf）动不了：它是 sharedUserId=android.uid.system
+# 的 system app，要写 /data/system 并发 setprop 才能把 ROM 交给 azahar-nano，
+# 重签就丢 system uid，从 /system/app 挪走同样丢。
+# 玩家想换 3DS 模拟器：直接装官方的即可，LANGOS 的「选择模拟器」会把两个都列出来。
+# 想让内置的彻底消失：建 /data/ngp/disable-internal-3ds，本脚本开机把它 disable。
+if [ -f /data/ngp/disable-internal-3ds ]; then
+    if ! pm list packages -d 2>/dev/null | grep -qx "package:com.gammaos.azaharsf"; then
+        pm disable-user --user 0 com.gammaos.azaharsf >/dev/null 2>&1 && \
+            log -t $TAG "azahar: builtin frontend disabled by flag"
     fi
 fi
 

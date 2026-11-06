@@ -1,0 +1,49 @@
+# HDMI 独占 1920x1080 —— 插上 HDMI 线时自动把视频端口从内屏让给 HDMI。
+#
+# 为什么需要这个
+# ──────────────
+# RK3562 只有一个 VOP（Video Port0），DSI 内屏和 RK628D HDMI 桥共用。
+# 只要 DSI 连接器保持 connected，HWC 就按内屏的 1024x768 合成，HDMI 拿到的
+# 也是 1024x768 时序 —— 在 1080p 显示器上表现为「只显示左上角一小块」。
+#
+# 把 DSI 的 DRM 连接器强制置为 disconnected 后，HWC 只剩 HDMI 一个输出，
+# 按 EDID 首选模式重新协商到 1920x1080p60，RK628 自动跟随。
+#
+# 触发时机
+# ────────
+# HWC 把 HDMI 状态写进 vendor.hwc.device.display-1，格式
+#   HDMI-A-1:<crtc>:connected
+#   HDMI-A-1:<crtc>:connected:compete   （HWC 正在抢端口）
+#   HDMI-A-1:<crtc>:release             （HWC 已放手）
+#   HDMI-A-1:<crtc>:disconnected
+# 用通配触发，脚本内部自己判断该不该动手。
+#
+# 拔线后恢复内屏：脚本检测到 HDMI 不再是 connected 就跳过，
+# 但 DSI 必须显式恢复，所以再挂一个服务处理拔线。
+
+service ngp_hdmi_1080 /system/bin/sh /vendor/bin/ngp-hdmi-1080.sh external
+    class late_start
+    user root
+    group root system
+    seclabel u:r:shell:s0
+    oneshot
+    disabled
+
+service ngp_hdmi_internal /system/bin/sh /vendor/bin/ngp-hdmi-1080.sh internal
+    class late_start
+    user root
+    group root system
+    seclabel u:r:shell:s0
+    oneshot
+    disabled
+
+# HWC 每次更新 HDMI 状态都可能触发；脚本自己判断，重复执行是幂等的。
+on property:vendor.hwc.device.display-1=*
+    start ngp_hdmi_1080
+
+# 拔线：HDMI 变成 disconnected/release 时把内屏要回来。
+on property:vendor.hwc.device.display-1=HDMI-A-1:*:disconnected
+    start ngp_hdmi_internal
+
+on property:vendor.hwc.device.display-1=HDMI-A-1:*:release
+    start ngp_hdmi_internal

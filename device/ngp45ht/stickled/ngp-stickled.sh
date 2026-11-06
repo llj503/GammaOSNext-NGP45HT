@@ -163,12 +163,27 @@ push_frame() {
     *)        _eff="" ;;
     esac
 
-    # 「关闭」不是靠 enable=0，而是把颜色写成 #000000。
-    # 全黑帧照样要发 —— WS2812 锁存上一帧，不发就一直是亮的。
-    if [ "$_hex" = "000000" ]; then
+    # 「关闭」不是靠 enable=0，而是把颜色写成接近黑。
+    #
+    # ⚠ 2026-11-05 修正：界面点「关闭」写进来的**不是 #000000，而是 #010101**
+    #   （实测 logcat 里一直是 `solid #010101, 16 leds`）。原来这里严格判
+    #   `= "000000"`，永远不成立 → 落到静态分支推了一帧 #010101 —— WS2812
+    #   全亮到 1/255，肉眼看就是「灯没关掉」。而把亮度拉到 0% 时
+    #   scale_color() 把每个分量都乘成 0，才真正得到 000000，于是「只有
+    #   亮度 0 能关灯」。
+    #
+    #   现在按阈值判：每个分量都 <= 2（约 1%）即视为关闭，直接发全零帧。
+    #   这样界面点「关闭」、亮度调 0 两条路都落到同一个 off 分支。
+    _r=$(printf '%d' "0x$(printf '%s' "$_hex" | cut -c1-2)" 2>/dev/null)
+    _g=$(printf '%d' "0x$(printf '%s' "$_hex" | cut -c3-4)" 2>/dev/null)
+    _b=$(printf '%d' "0x$(printf '%s' "$_hex" | cut -c5-6)" 2>/dev/null)
+    case "${_r}${_g}${_b}" in
+    ''|*[!0-9]*) _r=255 ;;
+    esac
+    if [ "$_r" -le 2 ] && [ "$_g" -le 2 ] && [ "$_b" -le 2 ]; then
         kill_anim
         "$BIN" --device "$DEV" --leds "$LEDS" off
-        log -t $TAG "color is black, all off"
+        log -t $TAG "near-black #$_hex, all off"
         return
     fi
 

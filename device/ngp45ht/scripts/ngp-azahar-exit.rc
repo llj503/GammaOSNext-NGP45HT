@@ -20,3 +20,21 @@ service ngp_azahar_exit /system/bin/sh /vendor/bin/ngp-azahar-exit.sh
 
 on property:init.svc.azahar-nano=stopped
     start ngp_azahar_exit
+
+# V38: AzaharSf 的 sessionRunning() 要求 session=1 且 host=app，而 V30 为了
+# DRM/SF 后端把 host 改成了 nano。结果 AzaharSf 等 20 秒后误判
+# "azahar-nano did not start"，finish() 回 LANGOS，但 azahar-nano 还在跑；
+# 下次再开游戏就会撞上“服务已在运行、session 却不匹配”的僵尸会话。
+#
+# 不能在服务刚 running 时立刻改：前端 main() 会读 host 选后端，会把手持
+# 模式的 DRM 也带偏成 SF。这里延迟 3 秒，等前端读完 host/backends 再改。
+service ngp_azahar_host /system/bin/sh /vendor/bin/ngp-azahar-host.sh
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0
+    disabled
+    oneshot
+
+on property:init.svc.azahar-nano=running && property:sys.gammaos.azahar_nano.from_app=1
+    start ngp_azahar_host

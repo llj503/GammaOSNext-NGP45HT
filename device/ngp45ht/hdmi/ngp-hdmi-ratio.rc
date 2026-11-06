@@ -1,0 +1,43 @@
+# NGP45HT V38: HDMI / 内屏输出仲裁，详见 ngp-hdmi-ratio.sh 顶部注释。
+#
+# 开机做一次逻辑尺寸/后端对齐（boot）；另有 watch 服务只在 HDMI 拔线
+# （connected -> disconnected）时等 DSI 接管后 wm size reset。连接时不改
+# 尺寸、不做 off/on 切换：实测在 HDMI 已拿走 VOP 后执行 wm size 会让
+# WindowManager 卡住并触发 system_server watchdog。
+#
+# 3DS：固定 DRM 直出，VOP 1024x768；电视端用 4:3/原始比例。
+
+service ngp_hdmi_boot /system/bin/sh /vendor/bin/ngp-hdmi-ratio.sh boot
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0
+    disabled
+    oneshot
+
+# 只监听 HDMI 断开，不在连接状态改 wm size。
+service ngp_hdmi_watch /system/bin/sh /vendor/bin/ngp-hdmi-ratio.sh watch
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0
+    disabled
+
+on property:sys.boot_completed=1
+    start ngp_hdmi_boot
+    start ngp_hdmi_watch
+
+# 手动切回内屏。RK628 的 HPD 拔线后有时仍为 1，HWC 不会自动把内屏接回来；
+# 机身返回键在桌面长按会写这个属性，也可以 adb：
+#   setprop sys.ngp.display.panel 1
+service ngp_display_panel /system/bin/sh /vendor/bin/ngp-hdmi-ratio.sh panel
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0
+    disabled
+    oneshot
+
+on property:sys.ngp.display.panel=1
+    setprop sys.ngp.display.panel 0
+    start ngp_display_panel

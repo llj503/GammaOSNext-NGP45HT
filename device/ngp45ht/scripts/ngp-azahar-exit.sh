@@ -24,6 +24,16 @@ LANGOS_ACT=com.retrofront/.NativeActivity
 # 等 AzaharSf finish + 窗口切换落定
 sleep 2
 
+# V38: AzaharSf 有时不会自己 finish（mStarted=true / poll 被 onPause 摘掉），
+# 残留在后台，下次启动会报 "already hosting a session, new launch ignored"。
+# 会话已经结束，直接清掉宿主；下次启动是新进程，也会用提前 bind 的汉化版。
+am force-stop com.gammaos.azaharsf >/dev/null 2>&1
+sleep 1
+
+# V38: DRM 会话把 VOP 留在 1024x768，而 wm size 还是 1366x768，
+# 回 LANGOS 后电视上图标会显得很大/被裁。把 HDMI 模式对齐一次。
+/vendor/bin/ngp-hdmi-ratio.sh restore
+
 FOCUS=$(timeout 6 dumpsys window 2>/dev/null | grep -m1 mCurrentFocus)
 if [ -z "$FOCUS" ]; then
     log -t $TAG "dumpsys window gave nothing, skip"

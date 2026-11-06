@@ -107,7 +107,18 @@ while true; do
                         fg=$(getprop sys.gammaos.gamepad.fg_pkg)
                         case "$fg" in
                             ""|com.retrofront|android)
-                                log -t $TAG "long-press ${held}ms in launcher ($fg), ignored"
+                                # V38: 桌面长按 = 显示兜底。RK628 的 HPD 拔线后
+                                # 有时仍停在 HDMI=1，HWC 不会把内屏接回来；这时
+                                # 长按返回键强制回内屏（off + wm size reset）。
+                                case "$(getprop vendor.hwc.device.display-0)" in
+                                    *:connected*|*:compete)
+                                        log -t $TAG "long-press ${held}ms in launcher ($fg), ignored"
+                                        ;;
+                                    *)
+                                        log -t $TAG "long-press ${held}ms in launcher, restoring internal panel"
+                                        setprop sys.ngp.display.panel 1
+                                        ;;
+                                esac
                                 ;;
                             *)
                                 log -t $TAG "long-press ${held}ms -> exiting $fg"

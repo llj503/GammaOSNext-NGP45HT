@@ -1,0 +1,8 @@
+# NGP45HT 性能统计守护进程
+# 读 SurfaceFlinger TimeStats 算帧率写 /data/local/tmp/ngp-fps，供悬浮窗显示。
+# seclabel 用 shell：该域已实测能 exec /vendor/bin 下的二进制并调用 dumpsys。
+service ngp_statd /vendor/bin/ngp-statd
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0
