@@ -14,11 +14,11 @@
 | 左摇杆上方（红色圈） | **电源键** | `rk805 pwrkey` | `KEY_POWER(116)` | — | 电源/息屏 | ⚠️ 待确认 |
 | 左侧边，电源键下 | **复位键** | **无** | — | — | — | ❌ **DTS 未配置** |
 | 左侧 | 十字键 | GPIO `gpio0_B5/B6/B3/B4` | `BTN_DPAD_*`→`ABS_HAT0X/Y` | — | D-Pad | ✅ |
-| 屏幕下居中 | **M 键** | **ADC 电阻梯** | `KEY_MUTE(113)` | `key 113 UNKNOWN` | 单击 HOME / 双击无动作 / 长按 MENU | ✅ 已修 |
+| 屏幕下居中 | **M 键** | **ADC 电阻梯** | `KEY_MUTE(113)` | `key 113 BACK` | BACK | ✅ 已修 |
 | 屏幕下左侧 | 喇叭 | — | — | — | — | — |
 | 右侧四色 | Y/X/A/B | GPIO `gpio2_A1/PA0`、`gpio0_C5/PC3` | `BTN_WEST/NORTH/SOUTH/EAST` | `key 30x BUTTON_*` | 面键 | ✅ |
 | 右侧 | 右摇杆（带氛围灯圈） | ADC `saradc0 ch2/ch3` | `ABS_RX`/`ABS_RY` | — | 右摇杆 | ✅ |
-| 右摇杆上方 | **返回键** | **ADC 电阻梯** | `KEY_ESC(1)` | `key 1 UNKNOWN` | 单击 BACK / 双击无动作 / 长按终止前台应用 | ✅ 已修 |
+| 右摇杆上方 | **返回键** | **ADC 电阻梯** | `KEY_ESC(1)` | `key 1 BACK` | BACK 短按 / 长按退出 | ✅ 已修 |
 | 返回键上方 | **电源指示灯** | rk817 硬件 | `CHG_STS` | — | — | ✅ 见下文 |
 | 顶部左 | 选择键 | GPIO `gpio0_A5` | `BTN_SELECT(314)` | `key 314 BUTTON_SELECT` | SELECT | ✅ |
 | 顶部右 | 开始键 | GPIO `gpio3_A6` | `BTN_START(315)` | `key 315 BUTTON_START` | START | ✅ |
@@ -159,19 +159,10 @@ if (charge->dc_charger != DC_TYPE_NONE_CHARGER)   /* ← 本板永远为假 */
 
 ---
 
-## 六、M 键 / 返回键的多击与长按
+## 六、长按退出（返回键）
 
-`adc-keys` 驱动只报 `KEY_MUTE(113)` / `KEY_ESC(1)` 的按下、松开，
-不认识单击/双击/长按，也不会替你做计时。所以 keylayout 把这两个键
-映射成 `UNKNOWN`（Android 不直接发 HOME/BACK），由 userspace 守护
-`/vendor/bin/ngp-navkey.sh` 读原始事件后合成：
+`adc-keys` 驱动只报 `KEY_ESC` 按下/松开，不认识长按。
+短按的 BACK 由 keylayout 正常发出（脚本只读不写，绝不吞事件）；
+长按 ≥1500ms 且前台不是桌面时 `am force-stop` 并回 LANGOS。
 
-| 按键 | 单击 | 双击 | 长按 |
-|---|---|---|---|
-| M 键 | HOME | 无动作 | MENU |
-| 返回键 | BACK | 无动作 | 终止前台应用（`am force-stop`，回 LANGOS） |
-
-- 单击要等 300ms 双击窗口过去才发，否则双击的第一下会先触发单击；
-- 长按阈值：M ≥600ms，返回 ≥1500ms（返回键会杀应用，留长一点）；
-- 监听 `/dev/input/event2`（adc-keys-ngp），按设备名找节点，不硬编码 event 号；
-- 返回键长按在前台是 LANGOS/`android` 时不做任何事。
+守护：`/vendor/bin/ngp-navkey.sh`，监听 `/dev/input/event2`（adc-keys-ngp）。

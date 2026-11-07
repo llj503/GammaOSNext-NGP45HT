@@ -1,38 +1,32 @@
 #!/system/bin/sh
-# NGP45HT: 机身 M 键 / 返回键的多击与长按守护
+# NGP45HT: 机身返回键「短按 BACK / 长按退出游戏」守护
 #
-# 键位表（2026-11-07 定版）：
-#   M 键      单击 -> HOME        双击 -> 无动作    长按 -> MENU
-#   返回键    单击 -> BACK        双击 -> 无动作    长按 -> 终止前台应用
+# 为什么需要它：
+#   adc-keys 驱动只做一件事 —— 在 ADC 读数跨过阈值时报按下、回落时报松开
+#   （KEY_ESC 1）。它不认识"长按"这个概念，内核也不会替你做计时。
+#   所以"长按 1.5 秒退出当前游戏"只能在 userspace 用一个 getevent 监听 +
+#   自己数时间来补。
 #
-# 为什么需要这个脚本：
-#   adc-keys 驱动只报按下/松开（M=KEY_MUTE 113，返回=KEY_ESC 1），不认识
-#   单击/双击/长按。keylayout 把这两个键改成了 UNKNOWN，Android 不会自己
-#   发 HOME/BACK；所有动作都由这里计时后合成。
+# 行为：
+#   短按（< HOLD_MS） -> 什么都不做（BACK 事件本身已经由 keylayout 正常发出，
+#                        本脚本只读不写，绝不吞掉模拟器的返回操作）
+#   长按（>= HOLD_MS）-> force-stop 当前前台游戏，然后回 LANGOS 主界面
 #
-# 计时：
-#   单击要等双击窗口（300ms）过去才能发，否则双击的第一下会先触发单击。
-#   长按在松开时判定：M >= 600ms，返回 >= 1500ms（返回键会杀应用，留长一点）。
-#
-# 实现要点：
-#   - getevent 是 FIFO 的唯一写者；主循环用 read -t 0.1 轮询，
-#     到点检查 deadline 再发单击。不要用后台 sleep 往 FIFO 写超时消息：
-#     多写者会把 getevent 的行切碎，实测会偶发丢 UP 事件/长按不触发。
-#   - /proc/uptime 的秒字段是两位小数，去掉小数点就是厘秒；
-#     不要再截掉最后两位（那会变成整秒，长按阈值永远到不了）。
+# 判定"当前前台是不是游戏"：
+#   优先用 gammapad 维护的 sys.gammaos.gamepad.fg_pkg（ngp-ps2hotkey.sh 同款）；
+#   这个属性为空或等于桌面自身时，长按才回桌面。这样在 LANGOS 里长按返回键
+#   不会莫名其妙 force-stop 桌面。
 #
 # 依赖：
-#   adc-keys-ngp（机身侧键）。不硬编码 event 号，按设备名查找。
-#   该节点不会被 gammapad re-hid，找到后很稳。
+#   adc-keys-ngp（机身侧键：返回 / M / 音量）。
+#   **不硬编码 event 号** —— event 号取决于设备枚举顺序，换内核/换 DTB/
+#   插拔 USB 都可能变。按 /sys/class/input/event*/device/name 找名字。
+#   这个节点不像物理手柄那样会被 gammapad re-hid 掉，所以找到之后很稳。
 
 DEV_NAME=adc-keys-ngp
 HOME_ACT=com.retrofront/com.retrofront.NativeActivity
 TAG=ngp-navkey
-M_LONG=60          # centiseconds = 600ms
-B_LONG=150         # centiseconds = 1500ms
-DOUBLE_CS=30       # 300ms double-click window
-POLL_S=0.1
-FIFO=/data/local/tmp/ngp-navkey.fifo
+HOLD_MS=1500
 
 find_dev() {
     for d in /sys/class/input/event*; do
@@ -45,139 +39,14 @@ find_dev() {
     return 1
 }
 
-now_cs() {
-    _t=$(cut -d' ' -f1 /proc/uptime | tr -d '.')
-    printf '%s' "$_t"
-}
-
-reset_state() {
-    DOWN_M=0; DOWN_B=0
-    PENDING_M=0; PENDING_B=0
-    DEADLINE_M=0; DEADLINE_B=0
-    DOUBLE_M=0; DOUBLE_B=0
-}
-
-do_single() {
-    log -t $TAG "single $1"
-    case "$1" in
-    m) input keyevent KEYCODE_HOME >/dev/null 2>&1 ;;
-    b) input keyevent KEYCODE_BACK >/dev/null 2>&1 ;;
-    esac
-}
-
-do_long() {
-    case "$1" in
-    m)
-        log -t $TAG "long M -> MENU"
-        input keyevent KEYCODE_MENU >/dev/null 2>&1
-        ;;
-    b)
-        fg=$(getprop sys.gammaos.gamepad.fg_pkg)
-        case "$fg" in
-        ""|com.retrofront|android)
-            log -t $TAG "long Back in launcher ($fg), ignored"
-            ;;
-        *)
-            log -t $TAG "long Back -> force-stop $fg"
-            am force-stop "$fg"
-            sleep 1
-            am start -n "$HOME_ACT" >/dev/null 2>&1
-            ;;
-        esac
-        ;;
-    esac
-}
-
-check_deadlines() {
-    [ "$PENDING_M" -eq 0 ] && [ "$PENDING_B" -eq 0 ] && return
-    _now=$(now_cs)
-    if [ "$PENDING_M" -eq 1 ] && [ "$_now" -ge "$DEADLINE_M" ]; then
-        PENDING_M=0
-        DEADLINE_M=0
-        do_single m
-    fi
-    if [ "$PENDING_B" -eq 1 ] && [ "$_now" -ge "$DEADLINE_B" ]; then
-        PENDING_B=0
-        DEADLINE_B=0
-        do_single b
-    fi
-}
-
-handle_down() {
-    check_deadlines
-    case "$1" in
-    m)
-        [ "$DOWN_M" -ne 0 ] && return
-        DOWN_M=$(now_cs)
-        log -t $TAG "down m at $DOWN_M"
-        if [ "$PENDING_M" -eq 1 ]; then
-            PENDING_M=0
-            DEADLINE_M=0
-            DOUBLE_M=1
-        else
-            DOUBLE_M=0
-        fi
-        ;;
-    b)
-        [ "$DOWN_B" -ne 0 ] && return
-        DOWN_B=$(now_cs)
-        log -t $TAG "down b at $DOWN_B"
-        if [ "$PENDING_B" -eq 1 ]; then
-            PENDING_B=0
-            DEADLINE_B=0
-            DOUBLE_B=1
-        else
-            DOUBLE_B=0
-        fi
-        ;;
-    esac
-}
-
-handle_up() {
-    check_deadlines
-    case "$1" in
-    m)
-        [ "$DOWN_M" -eq 0 ] && return
-        _now=$(now_cs)
-        _held=$((_now - DOWN_M))
-        DOWN_M=0
-        log -t $TAG "up m held=$_held double=$DOUBLE_M"
-        if [ "$DOUBLE_M" -eq 1 ]; then
-            DOUBLE_M=0
-            [ "$_held" -ge "$M_LONG" ] && do_long m
-        elif [ "$_held" -ge "$M_LONG" ]; then
-            do_long m
-        else
-            PENDING_M=1
-            DEADLINE_M=$((_now + DOUBLE_CS))
-        fi
-        ;;
-    b)
-        [ "$DOWN_B" -eq 0 ] && return
-        _now=$(now_cs)
-        _held=$((_now - DOWN_B))
-        DOWN_B=0
-        log -t $TAG "up b held=$_held double=$DOUBLE_B"
-        if [ "$DOUBLE_B" -eq 1 ]; then
-            DOUBLE_B=0
-            [ "$_held" -ge "$B_LONG" ] && do_long b
-        elif [ "$_held" -ge "$B_LONG" ]; then
-            do_long b
-        else
-            PENDING_B=1
-            DEADLINE_B=$((_now + DOUBLE_CS))
-        fi
-        ;;
-    esac
-}
-
 DEV=$(find_dev)
 if [ -n "$DEV" ]; then
-    log -t $TAG "side-key daemon started (dev=$DEV, M_long=${M_LONG}0ms, Back_long=${B_LONG}0ms)"
+    log -t $TAG "navkey daemon started (dev=$DEV, hold=${HOLD_MS}ms)"
 else
-    log -t $TAG "side-key daemon started, $DEV_NAME not found yet (will retry)"
+    log -t $TAG "navkey daemon started, $DEV_NAME not found yet (will retry)"
 fi
 
+# 等设备就绪（adc-keys 正常早就注册好了，这里主要是兜底）
 i=0
 while [ -z "$DEV" ]; do
     sleep 1
@@ -190,6 +59,8 @@ while [ -z "$DEV" ]; do
 done
 log -t $TAG "using $DEV"
 
+# 外层循环：getevent 万一因为节点消失而退出（比如 USB 重枚举导致
+# /dev/input 重新排列），重新找设备再接上，而不是默默死掉。
 while true; do
     DEV=$(find_dev)
     if [ -z "$DEV" ]; then
@@ -198,34 +69,73 @@ while true; do
         continue
     fi
 
-    reset_state
+    # getevent -l 的输出形如：
+    #   /dev/input/event2: EV_KEY       KEY_ESC          DOWN
+    #   /dev/input/event2: EV_KEY       KEY_ESC          UP
+    # 我们只关心 KEY_ESC 的 DOWN/UP 配对，并在 DOWN 时记下 uptime，
+    # 在 UP 时算差值决定是不是长按。
+    #
+    # ⚠ 这里必须用 FIFO，不能用 `exec 3< <(getevent ...)`：
+    #   Android 的 /system/bin/sh（toybox）**不支持进程替换**，实测报
+    #       sh: syntax error: unexpected '< '
+    #   之前这版脚本因此在设备上根本起不来（服务 running 但立即退出）。
+    # 也不能用 `getevent | while read`：管道右侧是子 shell，
+    # press_ms 的赋值带不出来，长按永远算成 0ms。
+    # FIFO + 后台 getevent 是唯一两头都满足的写法。
+    FIFO=/data/local/tmp/ngp-navkey.fifo
     rm -f "$FIFO"
     mkfifo "$FIFO" 2>/dev/null || { log -t $TAG "mkfifo failed"; sleep 3; continue; }
 
     getevent -l "$DEV" > "$FIFO" 2>/dev/null &
     GE_PID=$!
 
-    # 一个不发数据的常驻写者，保证主循环每次 read 打开 FIFO 时不会因为
-    # 短暂没有写者而阻塞在 open() 上；getevent 死掉后仍能靠 kill -0 发现。
-    sleep 3600 > "$FIFO" &
-    DUMMY_PID=$!
-
-    while true; do
-        if IFS= read -r -t "$POLL_S" line < "$FIFO"; then
-            case "$line" in
-            *KEY_MUTE*DOWN*) handle_down m ;;
-            *KEY_MUTE*UP*)   handle_up m ;;
-            *KEY_ESC*DOWN*)  handle_down b ;;
-            *KEY_ESC*UP*)    handle_up b ;;
-            esac
-        fi
-        check_deadlines
-        kill -0 "$GE_PID" 2>/dev/null || break
+    press_ms=0
+    while IFS= read -r line < "$FIFO"; do
+        case "$line" in
+            *KEY_ESC*DOWN*)
+                now=$(cut -d' ' -f1 /proc/uptime | tr -d '.')
+                now=${now%??}
+                press_ms=$now
+                ;;
+            *KEY_ESC*UP*)
+                if [ "$press_ms" != "0" ]; then
+                    now=$(cut -d' ' -f1 /proc/uptime | tr -d '.')
+                    now=${now%??}
+                    held=$(( (now - press_ms) * 100 ))
+                    press_ms=0
+                    if [ "$held" -ge "$HOLD_MS" ]; then
+                        fg=$(getprop sys.gammaos.gamepad.fg_pkg)
+                        case "$fg" in
+                            ""|com.retrofront|android)
+                                # V38: 桌面长按 = 显示兜底。RK628 的 HPD 拔线后
+                                # 有时仍停在 HDMI=1，HWC 不会把内屏接回来；这时
+                                # 长按返回键强制回内屏（off + wm size reset）。
+                                case "$(getprop vendor.hwc.device.display-0)" in
+                                    *:connected*|*:compete)
+                                        log -t $TAG "long-press ${held}ms in launcher ($fg), ignored"
+                                        ;;
+                                    *)
+                                        log -t $TAG "long-press ${held}ms in launcher, restoring internal panel"
+                                        setprop sys.ngp.display.panel 1
+                                        ;;
+                                esac
+                                ;;
+                            *)
+                                log -t $TAG "long-press ${held}ms -> exiting $fg"
+                                am force-stop "$fg"
+                                sleep 1
+                                am start -n "$HOME_ACT" >/dev/null 2>&1
+                                log -t $TAG "returned to launcher"
+                                ;;
+                        esac
+                    fi
+                fi
+                ;;
+        esac
     done
 
-    kill "$GE_PID" "$DUMMY_PID" 2>/dev/null
+    kill "$GE_PID" 2>/dev/null
     wait "$GE_PID" 2>/dev/null
-    wait "$DUMMY_PID" 2>/dev/null
     rm -f "$FIFO"
 
     log -t $TAG "getevent exited on $DEV, reconnecting"

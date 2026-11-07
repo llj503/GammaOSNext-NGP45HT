@@ -302,6 +302,24 @@ fi
 # 所以默认必须落在 ngp-pinyin 上。
 sleep 70
 
+# ③a 内置手柄拼音升级到 0.1.1（无障碍按键过滤，修复 LocalSend 等 Flutter 输入）
+IME_APK=/vendor/etc/ngp/NgpIme-0.1.1.apk
+if [ -f "$IME_APK" ]; then
+    _want=$(md5sum "$IME_APK" 2>/dev/null | awk '{print $1}')
+    _cur=$(pm path com.llj.ngpime 2>/dev/null | sed -n 's/^package://p' | head -1)
+    _have=""
+    [ -n "$_cur" ] && _have=$(md5sum "$_cur" 2>/dev/null | awk '{print $1}')
+    if [ -n "$_want" ] && [ "$_want" != "$_have" ]; then
+        for _i in 1 2 3; do
+            if pm install -r "$IME_APK" >/dev/null 2>&1; then
+                log -t $TAG "ime apk: 0.1.1 installed"
+                break
+            fi
+            sleep 3
+        done
+    fi
+fi
+
 # enabled_input_methods 必须先写全，否则 ime set 会报
 # "Unknown input method ... cannot be selected for user #0"。
 # 保留 leanback / LeanKey 是为了系统里还有可切换的英文键盘。
@@ -669,6 +687,25 @@ if [ -f "$NGP_DIR/LANGOS.apk" ]; then
     fi
 fi
 
+# ⑫a LANGOS ROM 根目录用短路径 /storage/EEROMS（v42）
+LPREF=/data/user/0/com.retrofront/shared_prefs/retrofront.xml
+if [ ! -f "$LPREF" ]; then
+    am start -n com.retrofront/.NativeActivity >/dev/null 2>&1
+    sleep 3
+fi
+if [ -f "$LPREF" ]; then
+    _lu=$(stat -c %u "$LPREF" 2>/dev/null)
+    _lg=$(stat -c %g "$LPREF" 2>/dev/null)
+    if ! grep -q '<string name="rom_root">/storage/EEROMS</string>' "$LPREF" 2>/dev/null; then
+        sed -i 's#<string name="rom_root">[^<]*</string>#<string name="rom_root">/storage/EEROMS</string>#' "$LPREF" 2>/dev/null
+        [ -n "$_lu" ] && chown "$_lu:$_lg" "$LPREF" 2>/dev/null
+        chmod 660 "$LPREF" 2>/dev/null
+        am force-stop com.retrofront >/dev/null 2>&1
+        am start -n com.retrofront/.NativeActivity >/dev/null 2>&1
+        log -t $TAG "langos: rom_root -> /storage/EEROMS"
+    fi
+fi
+
 # ⑫b 模拟器改为「可卸载」（v39）
 #
 # 原先把 NetherSX2 放在 /vendor/app/ 由系统扫描安装 —— 那是 system app，
@@ -711,6 +748,20 @@ install_emu() {
     fi
 }
 install_emu xyz.aethersx2.android "$EMU_DIR/NetherSX2.apk" nethersx2
+install_emu org.azahar_emu.azahar "$EMU_DIR/Azahar-official-2126.2.apk" "azahar-official"
+install_emu com.armsx2 "$EMU_DIR/ARMSX2-2.9.2-legacy-armv8.0.apk" armsx2
+
+# Azahar 官方版性能配置：预置到用户目录，首次向导选择该目录即可
+AZAHAR_HOME=/data/media/0/azahar-emu
+AZAHAR_CFG=$NGP_DIR/azahar/config.ini
+if [ -f "$AZAHAR_CFG" ]; then
+    mkdir -p "$AZAHAR_HOME/config" 2>/dev/null
+    cp -f "$AZAHAR_CFG" "$AZAHAR_HOME/config/config.ini" 2>/dev/null && \
+        log -t $TAG "azahar: config preset seeded"
+    chown -R media_rw:media_rw "$AZAHAR_HOME" 2>/dev/null
+    chmod 770 "$AZAHAR_HOME" "$AZAHAR_HOME/config" 2>/dev/null
+    chmod 660 "$AZAHAR_HOME/config/config.ini" 2>/dev/null
+fi
 
 # 3DS 内置前端（com.gammaos.azaharsf）动不了：它是 sharedUserId=android.uid.system
 # 的 system app，要写 /data/system 并发 setprop 才能把 ROM 交给 azahar-nano，

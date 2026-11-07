@@ -1,0 +1,9 @@
+# NGP45HT: keep the short /storage/EEROMS symlink for LANGOS rom_root.
+# vold only creates /storage/<volume UUID>; /storage is tmpfs, so recreate
+# the alias at boot and after card re-insertion.
+
+service ngp_eeroms_link /vendor/bin/ngp-eeroms-link.sh
+    class late_start
+    user root
+    group root shell
+    seclabel u:r:shell:s0

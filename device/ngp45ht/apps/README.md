@@ -4,8 +4,8 @@
 
 | 文件 | 包名 | 入口 | 大小 | md5 |
 | --- | --- | --- | --- | --- |
-| `NgpIme.apk` | `com.llj.ngpime` | `com.llj.ngpime/.NgpImeService` | 1,131,101 | `5cbaf7a244610c150970881e45415ef6` |
-| `LANGOS.apk` | `com.retrofront` | `com.retrofront/.NativeActivity` | 3,916,420 | `c00695275239213d18270a605055f0d0` |
+| `NgpIme.apk` | `com.llj.ngpime` | `com.llj.ngpime/.NgpImeService` | 1,131,187 | `4a161671889af113caf1af0a07e422b0` |
+| `LANGOS.apk` | `com.retrofront` | `com.retrofront/.NativeActivity` | 3,920,516 | `865d65b57392a7a0790f46852a4c7c66` |
 | `JoystickLedPicker-zh.apk` | `com.gammaos.joystickled` | `com.gammaos.joystickled/.MainActivity` | 3,488,534 | `27d4fe002502c0356b13529fb3505478` |
 
 `langos.jks` 是用来重签 LANGOS 的自签名密钥库（alias `langos`，口令都是 `ngp45ht`）。
@@ -18,7 +18,10 @@
 ## NgpIme —— 手柄拼音输入法
 
 来自 [llj503/ngp-pinyin-ime](https://github.com/llj503/ngp-pinyin-ime) 的
-v0.1.0 release，没改过。它是手柄优先的离线拼音输入法，10×4 QWERTY 网格，
+v0.1.1（main `b9b03df`）。v0.1.1 增加了「手柄拼音按键过滤」无障碍服务：
+LocalSend 等 Flutter 应用会自己吞掉硬件按键，输入法收不到；过滤器在输入法
+显示时接管手柄键、隐藏时原样透传，退格改用 `KEYCODE_DEL` 兼容 Flutter。
+它是手柄优先的离线拼音输入法，10×4 QWERTY 网格，
 焦点环全走 D-pad，不需要触摸屏；词库是 CC-CEDICT + jieba 词频，打包在
 `assets/dict.tsv.gz` 里，不联网、没有 INTERNET 权限。
 
@@ -39,8 +42,18 @@ v0.1.0 release，没改过。它是手柄优先的离线拼音输入法，10×4 
 `mgba` / `gpsp` / `vba_next` / `vbam` / `skyemu`），选择按 ROM 路径保存。
 实现与实测见 `../../../doc/ngp45ht/LANGOS-core-picker.md`。
 APK 为 `LANGOS-3.6-core.apk`（3,920,516 字节，md5
-`efc852b11e11e41ea05de393474a63a9`）。v39 镜像里仍是 3.5-emupick，
-本改动留给下一个镜像。
+`efc852b11e11e41ea05de393474a63a9`）。v39 镜像是 3.5-emupick，v40/v41 是
+3.6-core；v42 起用 3.7.1。
+
+**v3.7（versionCode 23）**：3DS 模拟器选择器加入官方 Azahar
+（`org.azahar_emu.azahar`），用 LANGOS FileProvider content URI 直接传 ROM。
+官方 Azahar 首次启动需完成向导（用户目录建议 `/storage/emulated/0/azahar-emu`、
+授予文件系统权限），并在游戏手柄设置里 Auto-Map 一次，否则物理 B 会被当成返回。
+**v3.7.1（versionCode 24）**：PS2 选择器支持 ARMSX2（`com.armsx2`），
+用绝对路径 data 启动 `com.armsx2.MainActivity`（ARMSX2 只认文件路径，
+不认 content URI）；官方 Azahar 的 content URI 启动不变。
+镜像 v42 起用 3.7.1：`LANGOS.apk`（md5 `865d65b57392a7a0790f46852a4c7c66`），
+历史 APK `LANGOS-3.7.1-armsx2.apk` 同内容。
 
 `ngp-fixup.sh` 每次开机做两件事：把 home 固定到它，以及给它
 `MANAGE_EXTERNAL_STORAGE`（扫 ROM 目录要用，内置到 system 后这条授权仍然要单独给）。
@@ -59,6 +72,10 @@ LANGOS 没有 rom_root 时会拉起 SAF 目录选择框，这一步没法自动�
 /data/data/com.retrofront/shared_prefs/saf_prefs.xml
     <string name="saf_tree_uri">content://com.android.externalstorage.documents/tree/primary%3A</string>
 ```
+
+v42 起：`ngp-eeroms-link` 服务开机把 EEROMS 卡链到 `/storage/EEROMS`，
+`ngp-fixup.sh` 首次开机把 `rom_root` 改成 `/storage/EEROMS`；SAF tree URI
+机制不变。若清除 LANGOS 数据或重刷后仍弹选择框，选 `/storage/EEROMS` 即可。
 
 注意 `rom_root` 要指到**放 ROM 的那一层**。如果指成 `/storage/emulated/0`，
 LANGOS 会把 `ROMs`、`RetroArch` 这些一级子目录各自当成一个"平台"，
@@ -146,9 +163,8 @@ apksigner sign --ks ngp-app.jks --ks-pass pass:ngp45ht --ks-key-alias ngpapp \
 ## 重新取这两个 APK
 
 ```bash
-# NgpIme：直接用 release
-curl -L -o NgpIme.apk \
-  https://github.com/llj503/ngp-pinyin-ime/releases/download/v0.1.0/ngp-ime-0.1.0.apk
+# NgpIme：本仓库 apps/NgpIme.apk 是 0.1.1（源码 main b9b03df）；
+# 上游 v0.1.0 release 不含无障碍按键过滤。
 
 # LANGOS：本仓库 apps/ 下这份就是镜像里用的（已改 3DS 目标），md5 见上表
 ```
