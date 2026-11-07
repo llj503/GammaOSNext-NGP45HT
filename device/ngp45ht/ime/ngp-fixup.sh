@@ -316,6 +316,19 @@ fi
 
 log -t $TAG "ime -> $(settings get secure default_input_method 2>/dev/null)"
 
+# ③b 无障碍按键过滤：LocalSend 等 Flutter 应用在自己的引擎里吃掉硬件按键，
+#     输入法收不到。启用同 APK 里的 NgpKeyFilterService：输入法显示时先
+#     接住手柄键，隐藏时所有按键原样透传。保留用户已启用的其他无障碍服务。
+A11Y=com.llj.ngpime/com.llj.ngpime.NgpKeyFilterService
+A11Y_LIST=$(settings get secure enabled_accessibility_services 2>/dev/null)
+case "$A11Y_LIST" in
+    *"$A11Y"*) ;;
+    ""|null) settings put secure enabled_accessibility_services "$A11Y" >/dev/null 2>&1 ;;
+    *) settings put secure enabled_accessibility_services "$A11Y_LIST:$A11Y" >/dev/null 2>&1 ;;
+esac
+settings put secure accessibility_enabled 1 >/dev/null 2>&1
+log -t $TAG "a11y -> $(settings get secure enabled_accessibility_services 2>/dev/null)"
+
 # ④ 联网验证改用国内可达的探测点。
 #    默认是 connectivitycheck.gstatic.com/generate_204，国内连不上 =>
 #    系统判"受限/未连接互联网"，但实际能上网。
