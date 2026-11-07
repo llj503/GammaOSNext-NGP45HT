@@ -52,6 +52,10 @@ vop_conns() {
         | sed -n 's/.*Connector:\([^[:space:]]*\).*/\1/p' | tr '\n' ' '
 }
 vop_only_hdmi() { [ "$(vop_conns)" = "HDMI-A-1 " ]; }
+vop_win_active() {
+    sed -n '/^Video Port0/,/^Video Port1/p' /sys/kernel/debug/dri/0/summary 2>/dev/null \
+        | grep -q 'win[0-9]*: ACTIVE'
+}
 vop_mode() { sed -n 's/.*Display mode: *//p' /sys/kernel/debug/dri/0/summary 2>/dev/null | head -1; }
 
 # LANGOS 的列数在 Activity 创建时算好（getScreenRatio），wm size 改变后
@@ -237,13 +241,13 @@ do_watch() {
         elif [ "$cur" = "connected" ] \
             && [ "$(getprop sys.screen.state)" = "on" ] \
             && [ "$(getprop init.svc.azahar-nano)" != "running" ] \
-            && ! vop_only_hdmi; then
+            && { [ "$(cur_override)" != "$MODE" ] || ! vop_only_hdmi || ! vop_win_active; }; then
             # 3DS DRM 后端会故意把 VOP 固定在 1024x768，不能抢回来。
             bad=$((bad + 1))
             if [ $bad -ge 2 ]; then
                 now=$(cut -d' ' -f1 /proc/uptime | cut -d. -f1)
                 if [ $((now - last_try)) -ge 15 ]; then
-                    log_msg "HDMI connected but VOP is $(vop_conns)$(vop_mode), re-apply"
+                    log_msg "HDMI connected but vop=$(vop_conns)$(vop_mode) override=$(cur_override), re-apply"
                     last_try=$now
                     do_hdmi
                     bad=0
