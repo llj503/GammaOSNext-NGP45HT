@@ -143,6 +143,13 @@ log -t $TAG "azahar backend locked to drm"
 
 # ⓪b 鼠标模式（gammapad）屏幕尺寸同步 —— 只做一次，不做常驻轮询。
 #
+# 鼠标模式切换只要 gammapad 的 Toast 提示，不要 RG52 的整屏反色闪烁。
+# RG52 的 rg52-mouseflash 服务监听 sys.gammaos.gamepad.mouse_active，
+# 每次切换把 accessibility_display_inversion_enabled 翻 50ms。
+# persist.rg52.mouse_flash=0 会让它只记录状态、不闪。
+setprop persist.rg52.mouse_flash 0
+
+#
 # 现象：`wm size 640x480` 之后鼠标指针能看见，但点击落点整体偏移，越往
 #       右下偏得越多。
 #

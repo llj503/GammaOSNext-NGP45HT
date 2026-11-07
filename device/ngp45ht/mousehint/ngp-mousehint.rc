@@ -1,0 +1,16 @@
+# 鼠标模式切换 Toast —— 替代 RG52 的整屏反色闪烁。
+#
+# 常驻脚本自己监听 sys.gammaos.gamepad.mouse_active；不用 property
+# trigger/oneshot，避免启动早期 trigger 撞上 already running 丢提示。
+
+service ngp_mousehint /vendor/bin/ngp-mousehint.sh
+    class late_start
+    user root
+    group root system
+    seclabel u:r:shell:s0
+
+on property:sys.boot_completed=1
+    start ngp_mousehint
+
+on property:init.svc.ngp_mousehint=stopped
+    start ngp_mousehint

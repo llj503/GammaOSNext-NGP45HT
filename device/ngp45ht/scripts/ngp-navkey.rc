@@ -1,7 +1,8 @@
-# NGP45HT: 机身返回键「短按 BACK / 长按退出游戏」守护。
+# NGP45HT: 机身 M 键 / 返回键的多击与长按守护。
 #
-# adc-keys 驱动只报 KEY_ESC 的按下/松开，不认识长按；短按的 BACK 由
-# keylayout 正常发出，本服务只做长按计时 + force-stop，不拦截任何事件。
+# keylayout 把 M/返回都映射成 UNKNOWN，本服务读原始 KEY_MUTE/KEY_ESC：
+#   M 键      单击 HOME / 双击无动作 / 长按 MENU
+#   返回键    单击 BACK / 双击无动作 / 长按终止前台应用
 #
 # 监听 /dev/input/event2 (adc-keys-ngp)。该节点不会被 gammapad re-hid，
 # event 号稳定，不像物理手柄那样会消失。
