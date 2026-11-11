@@ -133,3 +133,16 @@ adb reboot
 - 包目录必须完整拷完再重启：`manifest.txt` 不在时该目录会被跳过，不会误判失败；
 - 回滚用整卡镜像；也可以做「旧文件包」走同一机制推回去，但要把 `versionCode`
   处理好。
+
+## 实战：v43 首启播种热修复包
+
+`OTA/update-20261111-seedfix/`（`v43-seedfix-OTA.zip`）是单文件最小包，
+只替换 `vendor/bin/ngp-fixup.sh`，修的是 v43 首启固件不播种的
+`oneshot` + 后台 `&` 问题。这是本机制第一次用于现网修复：
+
+```bash
+./make_ota_package.sh <out-root> update-20261111-seedfix ngp-fixup.sh
+```
+
+应用后 `reboot=1` 自动重启，重启时新脚本前台解包固件 / 字体并写标记。
+详见 `v43-CHANGES.md`「六、v43r2 首启播种热修复」。

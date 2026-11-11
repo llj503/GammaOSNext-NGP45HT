@@ -1,0 +1,17 @@
+# v43r2 镜像校验清单（2026-11-11）
+# 修复 v43 首启 Vita3K+ 固件不播种（oneshot + 后台 & 被 init 回收）
+# 原 v43 发布物保持不动；本镜像为修正版，文件名带 r2
+
+26588eb7a835b351b4f469b7419b904fcf5ac87bc5668dd46717af90f7b1a319  GammaOSCore-NGP45HT-20261111-v43r2.img.xz
+
+# 解压后 .img 校验
+md5      7bc3284aac2fc647745dd97129b0145b  GammaOSCore-NGP45HT-20261111-v43r2.img
+sha256   b185f6bbba784bf99d994d9c0f5df481bfab70a3f3bc256ade1f6c660fb80030  GammaOSCore-NGP45HT-20261111-v43r2.img
+size     5451564032
+xz-size  2041587900
+
+# 单文件 OTA 修复包（已刷 v43 的机器不用重刷整卡）
+sha256   4d08cd197bc9a25b8d0a0860fe32a07be7dff13c20235e4d938d2d265c8bc2c5  OTA/v43-seedfix-OTA.zip
+md5      7668be9eea06de58c17dbeae77fbc4fd  OTA/v43-seedfix-OTA.zip
+# 包内载荷 vendor/bin/ngp-fixup.sh：md5 13288e8528023db5bc7415ed132aeb0a
+# sha256 c74d6b8c85f8cf77692573af9f212ab5938d9b7e0e919b0434b14c20c372ff5e

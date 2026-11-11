@@ -837,31 +837,89 @@ fi
 #     warn-missing-firmware: false，用系统 Vulkan，不挂自定义驱动）
 #   * 空目录骨架；ux0/app 留空，不含任何商业游戏数据
 #
+# ★ v43.1 修复（刷机首启不播种的根因）：
+#   原版把解包放进 `( ... ) &` 后台。ngp_fixup 在 ngp-fixup.rc 里是
+#   **oneshot** 服务，而 ⑬ 又是脚本最后一段 —— 主线程 fork 完立刻退出，
+#   init reap 服务时连带杀掉同进程组的后台解包。结果：种子包在、app 已装，
+#   但 /data/ngp/vita3k-plus-seeded 永远不写，Vita3K+ 提示「安装主固件 /
+#   字体包」。手工在 adb shell 前台跑同一条命令却成功。现改为前台同步执行。
+#
+# 同时去掉 pm path 门控：先铺数据不依赖 app 装没装，铺好后 pm install
+# 完成即可用；uid 从 /data/user/0/<pkg>（真实目录，非 symlink）取，
+# 避免 toybox stat 对 /data/data/<pkg> 符号链接不解引用拿到 root(0)。
+# xz/tar 用 command -v + 绝对路径回退，stderr 全部落盘到
+# /data/ngp/vita3k-seed.log，失败时不再「静默、无从查起」。
+#
 # 解包目标写 /data/media/0/...（/sdcard 背后的真实 ext4 路径），root 写
 # 不受 FUSE 归属映射影响；chown 到 app uid + ext_data_rw gid 之后，
 # /storage/emulated/0/Android/data/<pkg>/files 看到的就是同一份。
-# 只在「包在 + 标记不在 + 应用已安装」时跑一次；后台执行不阻塞开机。
 # 玩家自己放游戏：拷到 ux0/app/<TITLE_ID>/ 即可，Vita3K+ 会重新扫描。
 V3K_PKG=org.vita3kplus.emulator
 V3K_SEED=/system/etc/ngp/vita3k/vita3k-plus-seed.tar.xz
 V3K_BASE=/data/media/0/Android/data/$V3K_PKG
 V3K_DEST=$V3K_BASE/files
+V3K_CFG=$V3K_DEST/config.yml
 V3K_MARK=/data/ngp/vita3k-plus-seeded
-if [ -f "$V3K_SEED" ] && [ ! -f "$V3K_MARK" ] && pm path "$V3K_PKG" >/dev/null 2>&1; then
-    (
-        _uid=$(stat -c %u /data/data/$V3K_PKG 2>/dev/null)
-        _gid=$(stat -c %g /data/media/0/Android/data 2>/dev/null)
-        [ -n "$_gid" ] || _gid=1078
-        mkdir -p "$V3K_DEST" 2>/dev/null
-        if [ -n "$_uid" ] && xz -dc "$V3K_SEED" 2>/dev/null | tar -xf - -C "$V3K_DEST" 2>/dev/null; then
-            chown -R "$_uid:$_gid" "$V3K_DEST" 2>/dev/null
-            chmod -R 770 "$V3K_DEST" 2>/dev/null
-            chown "$_uid:$_gid" "$V3K_BASE" 2>/dev/null
-            chmod 2770 "$V3K_BASE" 2>/dev/null
-            : > "$V3K_MARK" 2>/dev/null
-            log -t $TAG "vita3k: firmware + VitaFS seeded ($V3K_DEST)"
+V3K_LOG=/data/ngp/vita3k-seed.log
+
+# 完整性判据：os0/kd 里要有 .skprx、sa0 字体 pvf 目录要在、config.yml 要在。
+# 手工播种过的机器据此跳过全量解包，只修 config 并补标记。
+V3K_COMPLETE() {
+    [ -n "$(ls "$V3K_DEST"/vita/os0/kd/*.skprx 2>/dev/null)" ] && \
+    [ -d "$V3K_DEST/vita/sa0/data/font/pvf" ] && [ -f "$V3K_CFG" ]
+}
+
+mkdir -p /data/ngp 2>/dev/null
+if [ -f "$V3K_SEED" ] && [ ! -f "$V3K_MARK" ]; then
+    : > "$V3K_LOG" 2>/dev/null
+    _say() {
+        log -t $TAG "vita3k: $1"
+        echo "$1" >> "$V3K_LOG" 2>/dev/null
+    }
+
+    _gid=$(stat -Lc %g /data/media/0/Android/data 2>/dev/null)
+    [ -n "$_gid" ] || _gid=1078
+    _uid=$(stat -Lc %u /data/user/0/$V3K_PKG 2>/dev/null)
+    [ -n "$_uid" ] || _uid=$(stat -Lc %u /data/data/$V3K_PKG 2>/dev/null)
+
+    if V3K_COMPLETE; then
+        _say "firmware already complete, skip unpack (config repair only)"
+    else
+        _xz=$(command -v xz 2>/dev/null);   [ -n "$_xz" ]  || _xz=/system/bin/xz
+        _tar=$(command -v tar 2>/dev/null); [ -n "$_tar" ] || _tar=/system/bin/tar
+        _say "start unpack uid=$_uid gid=$_gid xz=$_xz tar=$_tar"
+        mkdir -p "$V3K_DEST" 2>>"$V3K_LOG"
+        if [ ! -x "$_xz" ] || [ ! -x "$_tar" ]; then
+            _say "FAILED: xz/tar not executable"
+        elif [ -z "$_uid" ]; then
+            _say "FAILED: app uid unavailable (pkg=$V3K_PKG not installed yet)"
+        elif "$_xz" -dc "$V3K_SEED" 2>>"$V3K_LOG" | "$_tar" -xf - -C "$V3K_DEST" 2>>"$V3K_LOG"; then
+            chown -R "$_uid:$_gid" "$V3K_DEST" 2>>"$V3K_LOG"
+            chmod -R 770 "$V3K_DEST" 2>>"$V3K_LOG"
+            chown "$_uid:$_gid" "$V3K_BASE" 2>>"$V3K_LOG"
+            chmod 2770 "$V3K_BASE" 2>>"$V3K_LOG"
+            restorecon -R "$V3K_DEST" 2>>"$V3K_LOG"
+            _say "unpack OK"
         else
-            log -t $TAG "vita3k: seed FAILED, will retry next boot"
+            _say "FAILED: unpack pipeline returned $?, will retry next boot"
         fi
-    ) &
+    fi
+
+    # App 首次启动会把 config.yml 写回欢迎页/缺固件告警，无论是否解包都修回来。
+    if [ -f "$V3K_CFG" ]; then
+        sed -i 's/^initial-setup:.*/initial-setup: false/' "$V3K_CFG" 2>>"$V3K_LOG"
+        sed -i 's/^show-welcome:.*/show-welcome: false/' "$V3K_CFG" 2>>"$V3K_LOG"
+        sed -i 's/^warn-missing-firmware:.*/warn-missing-firmware: false/' "$V3K_CFG" 2>>"$V3K_LOG"
+        [ -n "$_uid" ] && chown "$_uid:$_gid" "$V3K_CFG" 2>>"$V3K_LOG"
+        chmod 660 "$V3K_CFG" 2>>"$V3K_LOG"
+        _say "config.yml welcome/missing-fw flags forced off"
+    fi
+
+    # 只有固件齐全才写标记；否则留着下次开机重试。
+    if V3K_COMPLETE; then
+        : > "$V3K_MARK" 2>/dev/null
+        _say "seeded marker written"
+    else
+        _say "NOT marked (incomplete), will retry next boot"
+    fi
 fi

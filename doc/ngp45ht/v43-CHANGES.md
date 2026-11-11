@@ -81,13 +81,17 @@ e2fsck -fy p4.img → resize2fs p4.img "${P4_SEC}s" → 按 offset 写回原 img
 
 ```sh
 xz -dc "$V3K_SEED" | tar -xf - -C "$V3K_DEST"
-chown -R "$_uid:$_gid" "$V3K_DEST"   # uid 取 /data/data/<pkg>，gid 取 Android/data
+chown -R "$_uid:$_gid" "$V3K_DEST"   # uid 取 /data/user/0/<pkg>，gid 取 Android/data
 chmod -R 770 "$V3K_DEST"
+restorecon -R "$V3K_DEST"
 : > /data/ngp/vita3k-plus-seeded
 ```
 
-条件：种子包存在 + 标记不存在 + `pm path org.vita3kplus.emulator` 成功。
-后台执行，解包失败下轮开机重试。设备 `/system/bin/xz` 5.7.0alpha 支持 `-dc`。
+条件：种子包存在 + 标记不存在。**前台同步执行**，解包失败下轮开机重试。
+设备 `/system/bin/xz` 5.7.0alpha 支持 `-dc`。
+
+> ⚠ 首版（v43 原镜像）这里用的是 `( ... ) &` 后台，实测刷机后不播种。
+> 根因与修复见下面「六、v43r2 首启播种热修复」；**v43r2 起已修**。
 
 ## 三、本地 OTA（合并自 PokectAis）
 
@@ -131,15 +135,98 @@ chmod -R 770 "$V3K_DEST"
 | OTA 打包脚本 | `bash -n` 通过；小包/全量包 manifest 与载荷 sha256 实测正确 |
 | 仓库模板对齐 | 注入镜像的 5 个文件与 `device/ngp45ht/` 下模板 md5 一致 |
 
-**未做**：真机刷机首启验证（固件解包、LANGOS PSV 拉起、OTA 重启链）需要
-上机跑，镜像层已全部静态校验通过。
+**真机首启验证结果**：刷 v43 后发现固件播种未生效（Vita3K+ 提示「安装主固件
+/ 字体包」），已定位到 `oneshot` + 后台 `&` 的进程组回收，见「六、v43r2」。
+LANGOS PSV 拉起与 OTA 重启链仍待补测。
 
 ## 五、升级注意
 
 - 只改 p4 / p5，**userdata 不动**，存档和设置都在；从 v42 升级不需要清数据
-- 首次开机等 10~20 秒：LANGOS 覆盖安装、Vita3K+ 首装、固件后台解包
+- 首次开机固件解包约 20~60 秒（v43r2 起前台同步）：LANGOS 覆盖安装、
+  Vita3K+ 首装完成后解包 132 MiB → 约 205 MiB，解包完再点开 Vita3K+
 - 想恢复被卸掉的 Vita3K+：`rm /data/ngp/emu-installed/org.vita3kplus.emulator`
   再重启
 - 想重新播种固件：`rm /data/ngp/vita3k-plus-seeded` 再重启
 - 种子包 132 MiB 超过 GitHub 单文件 100 MB 限制，**未入库**；重建镜像需
   从设备 `files/` 重新生成（见 `scripts/build_v43.sh` 注释）
+
+## 六、v43r2 首启播种热修复（2026-11-11）
+
+### 现象
+
+刷入 v43 原镜像后 Vita3K+ 提示「安装主固件 / 字体包」。镜像内种子包在
+（`/system/etc/ngp/vita3k/vita3k-plus-seed.tar.xz`，131,812,544 B）、
+Vita3K+ 也已由 ⑫b 装上，但 `/data/ngp/vita3k-plus-seeded` 缺失，
+`vita/os0/kd` 与 `vita/sa0/data/font/pvf` 都不存在；`config.yml` 被 App
+自己写回 `show-welcome: true` / `warn-missing-firmware: true`。
+手工在 adb shell **前台**跑同一条解包命令则成功。
+
+### 根因
+
+`/vendor/etc/init/ngp-fixup.rc`：
+
+```
+service ngp_fixup /system/bin/sh /vendor/bin/ngp-fixup.sh
+    class late_start
+    user root
+    group root shell
+    oneshot
+    disabled
+    seclabel u:r:shell:s0
+
+on property:sys.boot_completed=1
+    start ngp_fixup
+```
+
+`ngp_fixup` 是 **oneshot**，而 ⑬ 是脚本最后一段。原实现把解包放进
+`( ... ) &`：主线程 fork 完立刻退出，init reap 服务时连带杀掉同一进程组
+的后台解包进程，标记永远写不上。所有诊断又被 `2>/dev/null` 吞掉，
+logcat 里连一条失败原因都没有 —— 这正是「镜像内一切正常、设备就是不播种」
+的原因。次要隐患：`stat -c %u /data/data/<pkg>` 对该符号链接不解引用时
+会拿到 root(0)，导致 chown 错的 uid。
+
+### 修复（v43r2）
+
+| 项 | 原版 | v43r2 |
+|---|---|---|
+| 执行方式 | `( ... ) &` 后台 | **前台同步**，跑完才让脚本退出 |
+| 前置门控 | 需 `pm path <pkg>` 成功 | 去掉；先铺数据不依赖 app 是否装完 |
+| uid 取值 | `stat -c %u /data/data/<pkg>` | `stat -Lc %u /data/user/0/<pkg>`，回退 symlink |
+| xz / tar | 裸命令 + `2>/dev/null` | `command -v` + 绝对路径回退，stderr 落盘 |
+| 诊断 | 仅一条 `log` | `/data/ngp/vita3k-seed.log` 逐步打点 |
+| 完整性 | 只看管道退出码 | `os0/kd/*.skprx` + `sa0/.../pvf` + `config.yml` 三重判据 |
+| config | 只靠 tar 覆盖 | 每次开机强制把 `initial-setup` / `show-welcome` / `warn-missing-firmware` 修成 false |
+| 已手工播种 | 无条件全量覆盖 | 判据齐全则跳过解包，只修 config 并补标记 |
+
+### 验证（宿主逻辑沙盘，三遍）
+
+把 ⑬ 段抽出、路径替换后在宿主用真实种子包跑：
+
+| 遍 | 场景 | 结果 |
+|---|---|---|
+| 1 | 全新首启 | 解包成功，46 个 `.skprx`、pvf 字体目录、`config.yml` 三字段 false、标记写入 |
+| 2 | 标记已在 | 完全跳过，无输出 |
+| 3 | 删标记 + 已手工播种 + config 被改回 true | 日志 `firmware already complete, skip unpack`，config 修回 false，标记补写 |
+
+`sh -n` / `bash -n` 均通过。真机离线取证：镜像内 `ngp-fixup.sh` 与仓库模板
+md5 一致、种子包 131,812,544 B 在位、rc 服务定义如上。
+
+### 给已刷 v43 的机器（不用重刷整卡）
+
+用本地 OTA 推修好的脚本：
+
+```bash
+# 电脑上解包，把整个目录拷到掌机 /sdcard/OTA/
+unzip v43-seedfix-OTA.zip -d /sdcard/OTA/
+adb reboot   # 或直接在掌机上重启
+```
+
+包 `update-20261111-seedfix` 只含 `vendor/bin/ngp-fixup.sh`（46,922 B，
+sha256 `c74d6b8c…f5e`），`reboot=1`：开机应用 → 自动重启 → 新脚本前台播种
+→ 写标记。结果看包目录 `STATUS.txt` / `adb shell cat /data/ngp/ota.log`，
+播种细节看 `/data/ngp/vita3k-seed.log`。
+
+### 全新刷机
+
+用 `GammaOSCore-NGP45HT-20261111-v43r2.img.xz`（校验见
+`SHA256SUMS-v43r2.txt`）。原 `v43` 发布物**保持不动**，不覆盖已交付镜像。
