@@ -55,6 +55,26 @@ fi
 
 log -t $TAG "start"
 
+# ⓪0 v43 本地 OTA（源自 GammaOSNext-PokectAis v43）：
+#     /sdcard/OTA/update-* 有包就先校验 sha256 并替换 /system、/vendor 文件，
+#     成功后 ngp-ota.sh 自己重启，下面各段本次不再执行；校验失败只写
+#     STATUS.txt，不影响开机。没有包时只花一次目录判断。
+if [ -x /vendor/bin/ngp-ota.sh ]; then
+    /vendor/bin/ngp-ota.sh
+fi
+
+# ⓪a-1 v43 修「设置一闪就退」（源自 PokectAis v43）：
+#     LANGOS 抢了 home 后 LineageOS 的 SetupWizard 不再运行，device_provisioned
+#     一直是 0，Android 14 的 SettingsHomepageActivity 会
+#     "Device is not provisioned, exiting Settings" 直接 finish。
+#     只在未 provision 时补，正常走完向导的机器不受影响。
+if [ "$(settings get global device_provisioned 2>/dev/null)" != "1" ]; then
+    settings put global device_provisioned 1 >/dev/null 2>&1
+    settings put secure user_setup_complete 1 >/dev/null 2>&1
+    settings put secure tv_user_setup_complete 1 >/dev/null 2>&1
+    log -t $TAG "provisioning flags set (LANGOS home bypasses SetupWizard)"
+fi
+
 # ⓪a 默认桌面：固定为 LANGOS（com.retrofront）。
 #
 # LANGOS 已内置在 /system/app/LANGOS，刷完即是默认桌面，不依赖 Daijishō。
@@ -687,6 +707,20 @@ if [ -f "$NGP_DIR/LANGOS.apk" ]; then
     fi
 fi
 
+# ⑫a-0 v43 防 LANGOS 回落内置演示库（源自 PokectAis v43）：
+#     NativeActivity.scanGames() 在 rom_root 不存在、autoDetectRomRoot() 又
+#     找不到 TF 卡时不会显示 0 款，而是 loadMockData() 把开发者 TF 卡的
+#     平台与写死计数（FC 536 / SFC 280…）当成游戏库，日志
+#     "TF card not accessible, using mock data"。
+#     只在路径完全不存在时补一个空目录；已挂载的 TF2 卷 / EEROMS 短链接
+#     一律不碰。属主与 /data/media/0/Android/data 一致（1023:1078）。
+if [ ! -e /storage/EEROMS ]; then
+    mkdir -p /storage/EEROMS 2>/dev/null
+    chown 1023:1078 /storage/EEROMS 2>/dev/null
+    chmod 2770 /storage/EEROMS 2>/dev/null
+    log -t $TAG "langos: created empty /storage/EEROMS (mock-library guard)"
+fi
+
 # ⑫a LANGOS ROM 根目录用短路径 /storage/EEROMS（v42）
 LPREF=/data/user/0/com.retrofront/shared_prefs/retrofront.xml
 if [ ! -f "$LPREF" ]; then
@@ -750,6 +784,10 @@ install_emu() {
 install_emu xyz.aethersx2.android "$EMU_DIR/NetherSX2.apk" nethersx2
 install_emu org.azahar_emu.azahar "$EMU_DIR/Azahar-official-2126.2.apk" "azahar-official"
 install_emu com.armsx2 "$EMU_DIR/ARMSX2-2.9.2-legacy-armv8.0.apk" armsx2
+# v43: PS Vita 走 Vita3K+ v1.4（包名 org.vita3kplus.emulator）。
+# 官方 Vita3K 4303 在本机有 kernel 回调递归 SIGTRAP，Vita3K+ 实测用系统
+# Vulkan (Mali-G52 / 25.0.0) 可正常出帧，故镜像不再预装官方版。
+install_emu org.vita3kplus.emulator "$EMU_DIR/Vita3K-Plus-v1.4.apk" vita3kplus
 
 # Azahar 官方版性能配置：预置到用户目录，首次向导选择该目录即可
 AZAHAR_HOME=/data/media/0/azahar-emu
@@ -789,4 +827,41 @@ if [ -f "$NGP_DIR/ps2prefs.xml" ] && [ -d "$PS2_DATA" ] && [ -f "$PS2_PREFS" ]; 
             log -t $TAG "ps2: prefs seeded (uid=$UID_PS2, OpenGL + Pad1)"
         fi
     fi
+fi
+
+# ⑬ v43 Vita3K+ 固件与 VitaFS 首启播种
+#
+# 镜像内 /system/etc/ngp/vita3k/vita3k-plus-seed.tar.xz 内含：
+#   * PS Vita 固件与系统数据（vita/os0、vs0、sa0、ur0 等，约 205 MiB）
+#   * config.yml（initial-setup: false / show-welcome: false /
+#     warn-missing-firmware: false，用系统 Vulkan，不挂自定义驱动）
+#   * 空目录骨架；ux0/app 留空，不含任何商业游戏数据
+#
+# 解包目标写 /data/media/0/...（/sdcard 背后的真实 ext4 路径），root 写
+# 不受 FUSE 归属映射影响；chown 到 app uid + ext_data_rw gid 之后，
+# /storage/emulated/0/Android/data/<pkg>/files 看到的就是同一份。
+# 只在「包在 + 标记不在 + 应用已安装」时跑一次；后台执行不阻塞开机。
+# 玩家自己放游戏：拷到 ux0/app/<TITLE_ID>/ 即可，Vita3K+ 会重新扫描。
+V3K_PKG=org.vita3kplus.emulator
+V3K_SEED=/system/etc/ngp/vita3k/vita3k-plus-seed.tar.xz
+V3K_BASE=/data/media/0/Android/data/$V3K_PKG
+V3K_DEST=$V3K_BASE/files
+V3K_MARK=/data/ngp/vita3k-plus-seeded
+if [ -f "$V3K_SEED" ] && [ ! -f "$V3K_MARK" ] && pm path "$V3K_PKG" >/dev/null 2>&1; then
+    (
+        _uid=$(stat -c %u /data/data/$V3K_PKG 2>/dev/null)
+        _gid=$(stat -c %g /data/media/0/Android/data 2>/dev/null)
+        [ -n "$_gid" ] || _gid=1078
+        mkdir -p "$V3K_DEST" 2>/dev/null
+        if [ -n "$_uid" ] && xz -dc "$V3K_SEED" 2>/dev/null | tar -xf - -C "$V3K_DEST" 2>/dev/null; then
+            chown -R "$_uid:$_gid" "$V3K_DEST" 2>/dev/null
+            chmod -R 770 "$V3K_DEST" 2>/dev/null
+            chown "$_uid:$_gid" "$V3K_BASE" 2>/dev/null
+            chmod 2770 "$V3K_BASE" 2>/dev/null
+            : > "$V3K_MARK" 2>/dev/null
+            log -t $TAG "vita3k: firmware + VitaFS seeded ($V3K_DEST)"
+        else
+            log -t $TAG "vita3k: seed FAILED, will retry next boot"
+        fi
+    ) &
 fi

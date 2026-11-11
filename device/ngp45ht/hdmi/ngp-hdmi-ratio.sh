@@ -12,15 +12,9 @@
 # 策略：
 #   boot  —— 开机只做一次：HDMI 连接则 wm size 1366x768（LANGOS 16:9）；
 #            否则 wm size reset。不做 off/on 切换。
-#   watch —— 常驻，处理三个方向：
-#            disconnected -> connected：走 do_hdmi 的安全切换，把逻辑尺寸
-#            改成 1366x768（16:9），电视铺满；
-#            connected -> disconnected：等 HWC 把 VOP 还给 DSI 后 wm size reset。
-#            连接时不能裸调 wm size（HDMI 已占 VOP 会触发 WindowManager
-#            watchdog），所以必须复用 do_hdmi 的 off/等内屏/on/detect 流程；
-#            connected 但 VOP 被 HWC 抢回内屏：熄屏唤醒后 HWC 会自己把 VOP
-#            还给 DSI（HPD 状态不变），只靠连接边沿发现不了，需要按 VOP 归属
-#            复查并重做 do_hdmi。
+#   watch —— 常驻，但只在 HDMI connected -> disconnected 时动作：等 HWC 把
+#            VOP 还给 DSI 后 wm size reset。连接时不改尺寸，避免在 HDMI
+#            占用 VOP 时触发 WindowManager watchdog。
 #   hdmi  —— 手动：安全地把输出切到 HDMI（off -> 等内屏 -> wm size ->
 #            on/detect -> 确认 HDMI 独占 VOP）。会闪一下电视。
 #   panel —— 手动：强制回内屏（off -> 等内屏 -> wm size reset）。
@@ -52,10 +46,6 @@ vop_conns() {
         | sed -n 's/.*Connector:\([^[:space:]]*\).*/\1/p' | tr '\n' ' '
 }
 vop_only_hdmi() { [ "$(vop_conns)" = "HDMI-A-1 " ]; }
-vop_win_active() {
-    sed -n '/^Video Port0/,/^Video Port1/p' /sys/kernel/debug/dri/0/summary 2>/dev/null \
-        | grep -q 'win[0-9]*: ACTIVE'
-}
 vop_mode() { sed -n 's/.*Display mode: *//p' /sys/kernel/debug/dri/0/summary 2>/dev/null | head -1; }
 
 # LANGOS 的列数在 Activity 创建时算好（getScreenRatio），wm size 改变后
@@ -197,30 +187,11 @@ do_watch() {
             do_panel
         fi
     fi
-
-    # 等 boot 服务完成，避免和 do_boot 同时改尺寸。
-    n=0
-    while [ "$(getprop init.svc.ngp_hdmi_boot)" = "running" ] && [ $n -lt 20 ]; do
-        sleep 0.5
-        n=$((n + 1))
-    done
-    # 开机后、watch 启动前 HDMI 才插上：补一次 16:9 安全切换。
-    if [ "$(hdmi_state)" = "connected" ] && [ "$(cur_override)" != "$MODE" ]; then
-        log_msg "HDMI connected at watch start, apply $MODE"
-        do_hdmi
-    fi
-
     last=$(hdmi_state)
-    bad=0
-    last_try=0
     while true; do
         sleep 2
         cur=$(hdmi_state)
-        if [ "$last" != "connected" ] && [ "$cur" = "connected" ]; then
-            log_msg "HDMI connected (was $last)"
-            do_hdmi
-            bad=0
-        elif [ "$last" = "connected" ] && [ "$cur" != "connected" ]; then
+        if [ "$last" = "connected" ] && [ "$cur" != "connected" ]; then
             log_msg "HDMI disconnected (was connected)"
             n=0
             while [ $n -lt 10 ]; do
@@ -237,24 +208,6 @@ do_watch() {
             else
                 do_panel
             fi
-            bad=0
-        elif [ "$cur" = "connected" ] \
-            && [ "$(getprop sys.screen.state)" = "on" ] \
-            && [ "$(getprop init.svc.azahar-nano)" != "running" ] \
-            && { [ "$(cur_override)" != "$MODE" ] || ! vop_only_hdmi || ! vop_win_active; }; then
-            # 3DS DRM 后端会故意把 VOP 固定在 1024x768，不能抢回来。
-            bad=$((bad + 1))
-            if [ $bad -ge 2 ]; then
-                now=$(cut -d' ' -f1 /proc/uptime | cut -d. -f1)
-                if [ $((now - last_try)) -ge 15 ]; then
-                    log_msg "HDMI connected but vop=$(vop_conns)$(vop_mode) override=$(cur_override), re-apply"
-                    last_try=$now
-                    do_hdmi
-                    bad=0
-                fi
-            fi
-        else
-            bad=0
         fi
         last=$cur
     done

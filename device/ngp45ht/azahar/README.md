@@ -187,31 +187,3 @@ mov w8, #0x6953 ; movk w8, #0x6564, lsl #16      ← 后 4 字节硬编码成立
 1024x768 HUD 层）。**菜单所在的 overlay plane 不在导出范围内**，`screencap` 也抓不到
 （DRM 直出绕过 SurfaceFlinger），菜单只能人眼看。截 PPM 的办法很适合验证
 "游戏有没有真的出图"。
-
-## 官方 Azahar（org.azahar_emu.azahar，可选）
-
-LANGOS 3.7 起，3DS 详情页“启动游戏”会列出 **Azahar(内置)** 和 **Azahar(官方)**。
-官方版是 GitHub 的 `azahar-android-vanilla-2126.2.apk`（包名 `org.azahar_emu.azahar`），
-与内置 AzaharSf / azahar-nano 各自使用独立用户数据，存档不互通。
-
-首次运行：
-
-1. 安装官方 APK，完成欢迎向导；用户目录建议 `/storage/emulated/0/azahar-emu`，
-   并授予文件系统权限（否则 EmulationActivity 会直接退回主页）。
-2. 停掉 Azahar，把本目录的 `official-azahar-2126.2-mali-g52.ini` 复制为
-   `<用户目录>/config/config.ini`。
-3. 进游戏后打开菜单 → 设置 → 游戏手柄 → **Auto-Map Controller**，按一下 A，
-   套用标准手柄映射；否则物理 B 会被当成 Back 弹出模拟器菜单。
-
-这份配置针对 NGP45HT 的 Mali-G52：
-
-- `graphics_api = 2`（Vulkan）；`resolution_factor = 1`（原生 1x，卡顿的主要来源是默认 Auto 放大）
-- `async_shader_compilation` / `disable_spirv_optimizer` / `use_disk_shader_cache = 1`
-- `use_vsync = 0`、`use_frame_limit = 1`、`frame_limit = 100`
-- `disable_right_eye_render = 1`（3D 游戏性能提升；个别游戏闪烁时改回 0）
-- 硬件着色器、CPU/着色器 JIT 保持开启
-
-第一次进游戏会显示 Building Driver Pipeline Cache，等它完成；之后走磁盘缓存。
-上面的“OpenGL 会崩”只适用于 azahar-nano；官方版仍卡时可把 `resolution_factor`
-再降到 0.5，或在图形设置切回 OpenGL ES 兜底。
-

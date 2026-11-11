@@ -295,8 +295,6 @@
 
 .field private mainContainer:Landroid/widget/LinearLayout;
 
-.field private ngpPickedEmu:Ljava/lang/String;
-
 .field private platformAdapter:Lcom/retrofront/ui/PlatformAdapter;
 
 .field private platformInfoText:Landroid/widget/TextView;
@@ -358,6 +356,9 @@
 .field private final timeHandler:Landroid/os/Handler;
 
 .field private timeText:Landroid/widget/TextView;
+
+# NGP45HT: 玩家在「选择模拟器」弹窗里选中的包名
+.field private ngpPickedEmu:Ljava/lang/String;
 
 .field private final timeUpdateRunnable:Lcom/retrofront/NativeActivity$timeUpdateRunnable$1;
 
@@ -857,18 +858,6 @@
     return-object v0
 .end method
 
-.method public static final synthetic access$getPlatformCore(Lcom/retrofront/NativeActivity;Ljava/lang/String;)Ljava/lang/String;
-    .locals 0
-    .param p0, "$this"    # Lcom/retrofront/NativeActivity;
-    .param p1, "id"    # Ljava/lang/String;
-
-    invoke-direct {p0, p1}, Lcom/retrofront/NativeActivity;->getPlatformCore(Ljava/lang/String;)Ljava/lang/String;
-
-    move-result-object p0
-
-    return-object p0
-.end method
-
 .method public static final synthetic access$getGameAdapter$p(Lcom/retrofront/NativeActivity;)Lcom/retrofront/ui/GameAdapter;
     .locals 1
     .param p0, "$this"    # Lcom/retrofront/NativeActivity;
@@ -985,17 +974,6 @@
 
     .line 41
     invoke-direct {p0}, Lcom/retrofront/NativeActivity;->hideSearchDialog()V
-
-    return-void
-.end method
-
-.method public static final synthetic access$ngpLaunch(Lcom/retrofront/NativeActivity;Ljava/lang/String;Lcom/retrofront/data/Game;)V
-    .locals 0
-    .param p0, "$this"    # Lcom/retrofront/NativeActivity;
-    .param p1, "packageName"    # Ljava/lang/String;
-    .param p2, "game"    # Lcom/retrofront/data/Game;
-
-    invoke-direct {p0, p1, p2}, Lcom/retrofront/NativeActivity;->launchWithStandaloneEmulator(Ljava/lang/String;Lcom/retrofront/data/Game;)V
 
     return-void
 .end method
@@ -11720,32 +11698,6 @@
     .locals 3
     .param p1, "packageName"    # Ljava/lang/String;
 
-    const-string v0, "org.azahar_emu.azahar"
-
-    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v0
-
-    if-eqz v0, :cond_ngp_azahar_skip
-
-    const-string v0, "org.citra.citra_emu.activities.EmulationActivity"
-
-    return-object v0
-
-    :cond_ngp_azahar_skip
-    const-string v0, "com.armsx2"
-
-    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v0
-
-    if-eqz v0, :cond_armsx2_activity_skip
-
-    const-string v0, "com.armsx2.MainActivity"
-
-    return-object v0
-
-    :cond_armsx2_activity_skip
     .line 1897
     invoke-virtual {p1}, Ljava/lang/String;->hashCode()I
 
@@ -12059,20 +12011,21 @@
     .locals 3
     .param p1, "platformId"    # Ljava/lang/String;
 
+    # NGP45HT: 玩家在弹窗里选过的模拟器优先于硬编码默认值
     iget-object v1, p0, Lcom/retrofront/NativeActivity;->ngpPickedEmu:Ljava/lang/String;
 
-    if-eqz v1, :cond_0
+    if-eqz v1, :ngp_no_pick
 
     invoke-virtual {v1}, Ljava/lang/String;->length()I
 
     move-result v2
 
-    if-eqz v2, :cond_0
+    if-eqz v2, :ngp_no_pick
 
     return-object v1
 
+    :ngp_no_pick
     .line 1879
-    :cond_0
     invoke-virtual {p1}, Ljava/lang/String;->hashCode()I
 
     move-result v0
@@ -12089,7 +12042,7 @@
 
     move-result v0
 
-    if-nez v0, :cond_7
+    if-nez v0, :cond_6
 
     goto :goto_0
 
@@ -12100,7 +12053,7 @@
 
     move-result v0
 
-    if-nez v0, :cond_7
+    if-nez v0, :cond_6
 
     goto :goto_0
 
@@ -12111,7 +12064,7 @@
 
     move-result v0
 
-    if-nez v0, :cond_6
+    if-nez v0, :cond_5
 
     goto :goto_0
 
@@ -12122,7 +12075,7 @@
 
     move-result v0
 
-    if-nez v0, :cond_8
+    if-nez v0, :cond_7
 
     goto :goto_0
 
@@ -12133,12 +12086,12 @@
 
     move-result v0
 
-    if-nez v0, :cond_1
+    if-nez v0, :cond_0
 
     goto :goto_0
 
     .line 1885
-    :cond_1
+    :cond_0
     const-string v0, "org.ppsspp.ppsspp"
 
     goto/16 :goto_2
@@ -12151,12 +12104,12 @@
 
     move-result v0
 
-    if-nez v0, :cond_2
+    if-nez v0, :cond_1
 
     goto :goto_0
 
     .line 1884
-    :cond_2
+    :cond_1
     const-string v0, "xyz.aethersx2.android"
 
     goto/16 :goto_2
@@ -12169,7 +12122,7 @@
 
     move-result v0
 
-    if-nez v0, :cond_6
+    if-nez v0, :cond_5
 
     goto :goto_0
 
@@ -12180,7 +12133,7 @@
 
     move-result v0
 
-    if-nez v0, :cond_7
+    if-nez v0, :cond_6
 
     goto :goto_0
 
@@ -12191,12 +12144,12 @@
 
     move-result v0
 
-    if-nez v0, :cond_3
+    if-nez v0, :cond_2
 
     goto :goto_0
 
     .line 1886
-    :cond_3
+    :cond_2
     const-string v0, "com.dsemu.drastic"
 
     goto :goto_2
@@ -12209,12 +12162,12 @@
 
     move-result v0
 
-    if-nez v0, :cond_4
+    if-nez v0, :cond_3
 
     goto :goto_0
 
     .line 1880
-    :cond_4
+    :cond_3
     const-string v0, "org.mupen64plusae.v3.fzurita"
 
     goto :goto_2
@@ -12227,12 +12180,12 @@
 
     move-result v0
 
-    if-nez v0, :cond_5
+    if-nez v0, :cond_4
 
     goto :goto_0
 
     .line 1882
-    :cond_5
+    :cond_4
     const-string v0, "com.gammaos.azaharsf"
 
     goto :goto_2
@@ -12245,12 +12198,12 @@
 
     move-result v0
 
-    if-nez v0, :cond_6
+    if-nez v0, :cond_5
 
     goto :goto_0
 
     .line 1889
-    :cond_6
+    :cond_5
     const-string v0, "com.github.stenzek.duckstation"
 
     goto :goto_2
@@ -12263,7 +12216,7 @@
 
     move-result v0
 
-    if-nez v0, :cond_7
+    if-nez v0, :cond_6
 
     goto/16 :goto_0
 
@@ -12274,12 +12227,12 @@
 
     move-result v0
 
-    if-nez v0, :cond_7
+    if-nez v0, :cond_6
 
     goto/16 :goto_0
 
     .line 1881
-    :cond_7
+    :cond_6
     const-string v0, "org.dolphinemu.dolphinemu"
 
     goto :goto_2
@@ -12292,12 +12245,12 @@
 
     move-result v0
 
-    if-nez v0, :cond_8
+    if-nez v0, :cond_7
 
     goto/16 :goto_0
 
     .line 1883
-    :cond_8
+    :cond_7
     const-string v0, "org.vita3k.emulator"
 
     goto :goto_2
@@ -12310,12 +12263,12 @@
 
     move-result v0
 
-    if-nez v0, :cond_9
+    if-nez v0, :cond_8
 
     goto/16 :goto_0
 
     .line 1890
-    :cond_9
+    :cond_8
     const-string v0, "org.openbor.engine"
 
     goto :goto_2
@@ -12328,12 +12281,12 @@
 
     move-result v0
 
-    if-nez v0, :cond_a
+    if-nez v0, :cond_9
 
     goto/16 :goto_0
 
     .line 1893
-    :cond_a
+    :cond_9
     const-string v0, "com.flycast.emulator"
 
     goto/16 :goto_2
@@ -12345,8 +12298,6 @@
     .line 1879
     :goto_2
     return-object v0
-
-    nop
 
     :sswitch_data_0
     .sparse-switch
@@ -12368,6 +12319,372 @@
         0x1cbd7 -> :sswitch_1
         0x500cf83b -> :sswitch_0
     .end sparse-switch
+.end method
+
+.method public static final synthetic access$ngpLaunch(Lcom/retrofront/NativeActivity;Ljava/lang/String;Lcom/retrofront/data/Game;)V
+    .locals 0
+    .param p0, "$this"    # Lcom/retrofront/NativeActivity;
+    .param p1, "packageName"    # Ljava/lang/String;
+    .param p2, "game"    # Lcom/retrofront/data/Game;
+
+    invoke-direct {p0, p1, p2}, Lcom/retrofront/NativeActivity;->launchWithStandaloneEmulator(Ljava/lang/String;Lcom/retrofront/data/Game;)V
+
+    return-void
+.end method
+
+.method private final ngpEmuCandidates(Ljava/lang/String;)[Ljava/lang/String;
+    .locals 12
+    .param p1, "platformId"    # Ljava/lang/String;
+
+    # NGP45HT：每个平台的候选模拟器表，元素 "包名|显示名"，分号分隔。
+    # 只返回本机真的装了的，没装的不进选择框。
+    const-string v0, "ps2"
+
+    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :ngp_tab1
+
+    const-string v9, "xyz.aethersx2.android|NetherSX2 / AetherSX2;com.armsx2|ARMSX2"
+
+    goto :ngp_tab_have
+
+    :ngp_tab1
+
+    const-string v0, "3ds"
+
+    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :ngp_tab2
+
+    const-string v9, "com.gammaos.azaharsf|Azahar(内置);org.azahar.azahar|Azahar;org.citra.emu|Citra;org.citra.citra_emu|Citra MMJ"
+
+    goto :ngp_tab_have
+
+    :ngp_tab2
+
+    const-string v0, "psp"
+
+    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :ngp_tab3
+
+    const-string v9, "org.ppsspp.ppsspp|PPSSPP;org.ppsspp.ppssppgold|PPSSPP Gold"
+
+    goto :ngp_tab_have
+
+    :ngp_tab3
+
+    const-string v0, "nds"
+
+    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    if-eqz v0, :ngp_tab4
+
+    const-string v9, "com.dsemu.drastic|DraStic;com.gammaos.drasticsf|DraStic(内置)"
+
+    goto :ngp_tab_have
+
+    :ngp_tab4
+
+    const/4 v1, 0x0
+
+    return-object v1
+
+    :ngp_tab_have
+    new-instance v8, Ljava/util/ArrayList;
+
+    invoke-direct {v8}, Ljava/util/ArrayList;-><init>()V
+
+    const-string v0, ";"
+
+    invoke-virtual {v9, v0}, Ljava/lang/String;->split(Ljava/lang/String;)[Ljava/lang/String;
+
+    move-result-object v7
+
+    array-length v6, v7
+
+    const/4 v5, 0x0
+
+    :ngp_cand_loop
+    if-ge v5, v6, :ngp_cand_end
+
+    aget-object v4, v7, v5
+
+    const/16 v0, 0x7c
+
+    invoke-virtual {v4, v0}, Ljava/lang/String;->indexOf(I)I
+
+    move-result v3
+
+    if-ltz v3, :ngp_cand_next
+
+    const/4 v0, 0x0
+
+    invoke-virtual {v4, v0, v3}, Ljava/lang/String;->substring(II)Ljava/lang/String;
+
+    move-result-object v2
+
+    invoke-direct {p0, v2}, Lcom/retrofront/NativeActivity;->isPackageInstalled(Ljava/lang/String;)Z
+
+    move-result v0
+
+    if-eqz v0, :ngp_cand_next
+
+    invoke-virtual {v8, v4}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
+
+    move-result v0
+
+    :ngp_cand_next
+    add-int/lit8 v5, v5, 0x1
+
+    goto :ngp_cand_loop
+
+    :ngp_cand_end
+    invoke-virtual {v8}, Ljava/util/ArrayList;->size()I
+
+    move-result v0
+
+    if-eqz v0, :ngp_cand_null
+
+    new-array v1, v0, [Ljava/lang/String;
+
+    invoke-virtual {v8, v1}, Ljava/util/ArrayList;->toArray([Ljava/lang/Object;)[Ljava/lang/Object;
+
+    move-result-object v1
+
+    check-cast v1, [Ljava/lang/String;
+
+    return-object v1
+
+    :ngp_cand_null
+    const/4 v1, 0x0
+
+    return-object v1
+.end method
+
+.method private final ngpEmuChooser(Ljava/lang/String;Lcom/retrofront/data/Game;)Z
+    .locals 12
+    .param p1, "platformId"    # Ljava/lang/String;
+    .param p2, "game"    # Lcom/retrofront/data/Game;
+
+    # NGP45HT：同一平台装了多个模拟器时弹框让玩家选。
+    # 返回 true = 已弹框，后续由回调启动，调用方必须直接 return。
+    const/4 v0, 0x0
+
+    iput-object v0, p0, Lcom/retrofront/NativeActivity;->ngpPickedEmu:Ljava/lang/String;
+
+    # 「最近游玩 / 收藏」屏的 currentPlatform 是 recent / favorite，查不到候选表，
+    # 必须用游戏自己的 platformId。
+    invoke-virtual {p2}, Lcom/retrofront/data/Game;->getPlatformId()Ljava/lang/String;
+
+    move-result-object v9
+
+    if-nez v9, :ngp_chooser_pid
+
+    move-object v9, p1
+
+    :ngp_chooser_pid
+    invoke-direct {p0, v9}, Lcom/retrofront/NativeActivity;->ngpEmuCandidates(Ljava/lang/String;)[Ljava/lang/String;
+
+    move-result-object v1
+
+    const/4 v11, 0x0
+
+    # 诊断日志：候选数量
+    new-instance v0, Ljava/lang/StringBuilder;
+
+    invoke-direct {v0}, Ljava/lang/StringBuilder;-><init>()V
+
+    const-string v3, "chooser platform="
+
+    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    invoke-virtual {v0, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    const-string v3, " cand="
+
+    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    if-eqz v1, :ngp_log_zero
+
+    array-length v3, v1
+
+    goto :ngp_log_n
+
+    :ngp_log_zero
+    const/4 v3, 0x0
+
+    :ngp_log_n
+    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    const-string v3, " azh="
+
+    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    const-string v3, "com.gammaos.azaharsf"
+
+    invoke-direct {p0, v3}, Lcom/retrofront/NativeActivity;->isPackageInstalled(Ljava/lang/String;)Z
+
+    move-result v3
+
+    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Z)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    const-string v3, " armsx2="
+
+    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    const-string v3, "com.armsx2"
+
+    invoke-direct {p0, v3}, Lcom/retrofront/NativeActivity;->isPackageInstalled(Ljava/lang/String;)Z
+
+    move-result v3
+
+    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Z)Ljava/lang/StringBuilder;
+
+    move-result-object v0
+
+    invoke-virtual {v0}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v0
+
+    const-string v3, "NGP_EMU"
+
+    invoke-static {v3, v0}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
+
+    if-eqz v1, :ngp_choose_zero
+
+    array-length v2, v1
+
+    if-eqz v2, :ngp_choose_zero
+
+    const/4 v0, 0x1
+
+    if-ne v2, v0, :ngp_choose_multi
+
+    # 只有一个已安装：直接用，不打扰玩家
+    aget-object v3, v1, v11
+
+    const/16 v4, 0x7c
+
+    invoke-virtual {v3, v4}, Ljava/lang/String;->indexOf(I)I
+
+    move-result v4
+
+    invoke-virtual {v3, v11, v4}, Ljava/lang/String;->substring(II)Ljava/lang/String;
+
+    move-result-object v4
+
+    iput-object v4, p0, Lcom/retrofront/NativeActivity;->ngpPickedEmu:Ljava/lang/String;
+
+    return v11
+
+    :ngp_choose_zero
+    return v11
+
+    :ngp_choose_multi
+    new-array v5, v2, [Ljava/lang/CharSequence;
+
+    new-array v6, v2, [Ljava/lang/String;
+
+    const/4 v3, 0x0
+
+    :ngp_choose_loop
+    if-ge v3, v2, :ngp_choose_loop_end
+
+    aget-object v4, v1, v3
+
+    const/16 v7, 0x7c
+
+    invoke-virtual {v4, v7}, Ljava/lang/String;->indexOf(I)I
+
+    move-result v7
+
+    invoke-virtual {v4, v11, v7}, Ljava/lang/String;->substring(II)Ljava/lang/String;
+
+    move-result-object v8
+
+    aput-object v8, v6, v3
+
+    add-int/lit8 v7, v7, 0x1
+
+    invoke-virtual {v4, v7}, Ljava/lang/String;->substring(I)Ljava/lang/String;
+
+    move-result-object v8
+
+    aput-object v8, v5, v3
+
+    add-int/lit8 v3, v3, 0x1
+
+    goto :ngp_choose_loop
+
+    :ngp_choose_loop_end
+    new-instance v4, Ljava/lang/StringBuilder;
+
+    invoke-direct {v4}, Ljava/lang/StringBuilder;-><init>()V
+
+    const-string v7, "\u9009\u62e9\u6a21\u62df\u5668\uff08"
+
+    invoke-virtual {v4, v7}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v4
+
+    invoke-virtual {v4, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v4
+
+    const-string v7, "\uff09"
+
+    invoke-virtual {v4, v7}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+
+    move-result-object v4
+
+    invoke-virtual {v4}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+
+    move-result-object v4
+
+    new-instance v7, Landroid/app/AlertDialog$Builder;
+
+    invoke-direct {v7, p0}, Landroid/app/AlertDialog$Builder;-><init>(Landroid/content/Context;)V
+
+    invoke-virtual {v7, v4}, Landroid/app/AlertDialog$Builder;->setTitle(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder;
+
+    move-result-object v7
+
+    new-instance v8, Lcom/retrofront/NativeActivity$NgpEmuPickListener;
+
+    invoke-direct {v8, p0, p2, v6}, Lcom/retrofront/NativeActivity$NgpEmuPickListener;-><init>(Lcom/retrofront/NativeActivity;Lcom/retrofront/data/Game;[Ljava/lang/String;)V
+
+    invoke-virtual {v7, v5, v8}, Landroid/app/AlertDialog$Builder;->setItems([Ljava/lang/CharSequence;Landroid/content/DialogInterface$OnClickListener;)Landroid/app/AlertDialog$Builder;
+
+    move-result-object v7
+
+    invoke-virtual {v7}, Landroid/app/AlertDialog$Builder;->show()Landroid/app/AlertDialog;
+
+    const/4 v0, 0x1
+
+    return v0
 .end method
 
 .method private final hasAllFilesAccess()Z
@@ -13084,7 +13401,7 @@
 
     move-result v0
 
-    if-eqz v0, :cond_armsx2_check
+    if-eqz v0, :cond_1
 
     new-instance v0, Landroid/content/Intent;
 
@@ -13108,48 +13425,6 @@
 
     goto/16 :goto_12
 
-    :cond_armsx2_check
-    const-string v0, "com.armsx2"
-
-    invoke-virtual {v9, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v0
-
-    if-eqz v0, :cond_armsx2_skip
-
-    new-instance v0, Landroid/content/Intent;
-
-    const-string v1, "android.intent.action.VIEW"
-
-    invoke-direct {v0, v1}, Landroid/content/Intent;-><init>(Ljava/lang/String;)V
-
-    invoke-virtual {v14}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;
-
-    move-result-object v1
-
-    invoke-static {v1}, Landroid/net/Uri;->parse(Ljava/lang/String;)Landroid/net/Uri;
-
-    move-result-object v1
-
-    const-string v2, "*/*"
-
-    invoke-virtual {v0, v1, v2}, Landroid/content/Intent;->setDataAndType(Landroid/net/Uri;Ljava/lang/String;)Landroid/content/Intent;
-
-    const-string v1, "com.armsx2"
-
-    const-string v2, "com.armsx2.MainActivity"
-
-    invoke-virtual {v0, v1, v2}, Landroid/content/Intent;->setClassName(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;
-
-    const v1, 0x10000000
-
-    invoke-virtual {v0, v1}, Landroid/content/Intent;->addFlags(I)Landroid/content/Intent;
-
-    invoke-virtual {v8, v0}, Lcom/retrofront/NativeActivity;->startActivity(Landroid/content/Intent;)V
-
-    goto/16 :goto_12
-
-    :cond_armsx2_skip
     :cond_1
     invoke-virtual/range {p1 .. p1}, Ljava/lang/String;->hashCode()I
 
@@ -13216,17 +13491,6 @@
     move-result v0
     :try_end_3
     .catch Ljava/lang/Exception; {:try_start_3 .. :try_end_3} :catch_16
-
-    if-nez v0, :cond_3
-
-    goto :goto_0
-
-    :sswitch_3
-    const-string v0, "org.azahar_emu.azahar"
-
-    invoke-virtual {v9, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v0
 
     if-nez v0, :cond_3
 
@@ -15288,7 +15552,6 @@
     :sswitch_data_0
     .sparse-switch
         -0x67430730 -> :sswitch_2
-        -0x3c4aab4a -> :sswitch_3
         0x29eb5f4b -> :sswitch_1
         0x573cb452 -> :sswitch_0
     .end sparse-switch
@@ -17232,349 +17495,6 @@
 
     :cond_2
     return-object v0
-.end method
-
-.method private final ngpEmuCandidates(Ljava/lang/String;)[Ljava/lang/String;
-    .locals 12
-    .param p1, "platformId"    # Ljava/lang/String;
-
-    const-string v0, "ps2"
-
-    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v0
-
-    if-eqz v0, :cond_0
-
-    const-string v9, "xyz.aethersx2.android|NetherSX2 / AetherSX2;com.armsx2|ARMSX2"
-
-    goto :goto_0
-
-    :cond_0
-    const-string v0, "3ds"
-
-    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v0
-
-    if-eqz v0, :cond_1
-
-    const-string v9, "com.gammaos.azaharsf|Azahar(\u5185\u7f6e);org.azahar_emu.azahar|Azahar(\u5b98\u65b9);org.azahar.azahar|Azahar;org.citra.emu|Citra;org.citra.citra_emu|Citra MMJ"
-
-    goto :goto_0
-
-    :cond_1
-    const-string v0, "psp"
-
-    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v0
-
-    if-eqz v0, :cond_2
-
-    const-string v9, "org.ppsspp.ppsspp|PPSSPP;org.ppsspp.ppssppgold|PPSSPP Gold"
-
-    goto :goto_0
-
-    :cond_2
-    const-string v0, "nds"
-
-    invoke-virtual {p1, v0}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
-
-    move-result v0
-
-    if-eqz v0, :cond_3
-
-    const-string v9, "com.dsemu.drastic|DraStic;com.gammaos.drasticsf|DraStic(\u5185\u7f6e)"
-
-    goto :goto_0
-
-    :cond_3
-    const/4 v1, 0x0
-
-    return-object v1
-
-    :goto_0
-    new-instance v8, Ljava/util/ArrayList;
-
-    invoke-direct {v8}, Ljava/util/ArrayList;-><init>()V
-
-    const-string v0, ";"
-
-    invoke-virtual {v9, v0}, Ljava/lang/String;->split(Ljava/lang/String;)[Ljava/lang/String;
-
-    move-result-object v7
-
-    array-length v6, v7
-
-    const/4 v5, 0x0
-
-    :goto_1
-    if-ge v5, v6, :cond_5
-
-    aget-object v4, v7, v5
-
-    const/16 v0, 0x7c
-
-    invoke-virtual {v4, v0}, Ljava/lang/String;->indexOf(I)I
-
-    move-result v3
-
-    if-ltz v3, :cond_4
-
-    const/4 v0, 0x0
-
-    invoke-virtual {v4, v0, v3}, Ljava/lang/String;->substring(II)Ljava/lang/String;
-
-    move-result-object v2
-
-    invoke-direct {p0, v2}, Lcom/retrofront/NativeActivity;->isPackageInstalled(Ljava/lang/String;)Z
-
-    move-result v0
-
-    if-eqz v0, :cond_4
-
-    invoke-virtual {v8, v4}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
-
-    move-result v0
-
-    :cond_4
-    add-int/lit8 v5, v5, 0x1
-
-    goto :goto_1
-
-    :cond_5
-    invoke-virtual {v8}, Ljava/util/ArrayList;->size()I
-
-    move-result v0
-
-    if-eqz v0, :cond_6
-
-    new-array v1, v0, [Ljava/lang/String;
-
-    invoke-virtual {v8, v1}, Ljava/util/ArrayList;->toArray([Ljava/lang/Object;)[Ljava/lang/Object;
-
-    move-result-object v1
-
-    check-cast v1, [Ljava/lang/String;
-
-    return-object v1
-
-    :cond_6
-    const/4 v1, 0x0
-
-    return-object v1
-.end method
-
-.method private final ngpEmuChooser(Ljava/lang/String;Lcom/retrofront/data/Game;)Z
-    .locals 12
-    .param p1, "platformId"    # Ljava/lang/String;
-    .param p2, "game"    # Lcom/retrofront/data/Game;
-
-    const/4 v0, 0x0
-
-    iput-object v0, p0, Lcom/retrofront/NativeActivity;->ngpPickedEmu:Ljava/lang/String;
-
-    invoke-virtual {p2}, Lcom/retrofront/data/Game;->getPlatformId()Ljava/lang/String;
-
-    move-result-object v9
-
-    if-nez v9, :cond_0
-
-    move-object v9, p1
-
-    :cond_0
-    invoke-direct {p0, v9}, Lcom/retrofront/NativeActivity;->ngpEmuCandidates(Ljava/lang/String;)[Ljava/lang/String;
-
-    move-result-object v1
-
-    const/4 v11, 0x0
-
-    new-instance v0, Ljava/lang/StringBuilder;
-
-    invoke-direct {v0}, Ljava/lang/StringBuilder;-><init>()V
-
-    const-string v3, "chooser platform="
-
-    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    move-result-object v0
-
-    invoke-virtual {v0, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    move-result-object v0
-
-    const-string v3, " cand="
-
-    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    move-result-object v0
-
-    if-eqz v1, :cond_1
-
-    array-length v3, v1
-
-    goto :goto_0
-
-    :cond_1
-    const/4 v3, 0x0
-
-    :goto_0
-    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
-
-    move-result-object v0
-
-    const-string v3, " azh="
-
-    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    move-result-object v0
-
-    const-string v3, "com.gammaos.azaharsf"
-
-    invoke-direct {p0, v3}, Lcom/retrofront/NativeActivity;->isPackageInstalled(Ljava/lang/String;)Z
-
-    move-result v3
-
-    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Z)Ljava/lang/StringBuilder;
-
-    move-result-object v0
-
-    const-string v3, " armsx2="
-
-    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    move-result-object v0
-
-    const-string v3, "com.armsx2"
-
-    invoke-direct {p0, v3}, Lcom/retrofront/NativeActivity;->isPackageInstalled(Ljava/lang/String;)Z
-
-    move-result v3
-
-    invoke-virtual {v0, v3}, Ljava/lang/StringBuilder;->append(Z)Ljava/lang/StringBuilder;
-
-    move-result-object v0
-
-    invoke-virtual {v0}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
-
-    move-result-object v0
-
-    const-string v3, "NGP_EMU"
-
-    invoke-static {v3, v0}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
-
-    if-eqz v1, :cond_2
-
-    array-length v2, v1
-
-    if-eqz v2, :cond_2
-
-    const/4 v0, 0x1
-
-    if-ne v2, v0, :cond_3
-
-    aget-object v3, v1, v11
-
-    const/16 v4, 0x7c
-
-    invoke-virtual {v3, v4}, Ljava/lang/String;->indexOf(I)I
-
-    move-result v4
-
-    invoke-virtual {v3, v11, v4}, Ljava/lang/String;->substring(II)Ljava/lang/String;
-
-    move-result-object v4
-
-    iput-object v4, p0, Lcom/retrofront/NativeActivity;->ngpPickedEmu:Ljava/lang/String;
-
-    return v11
-
-    :cond_2
-    return v11
-
-    :cond_3
-    new-array v5, v2, [Ljava/lang/CharSequence;
-
-    new-array v6, v2, [Ljava/lang/String;
-
-    const/4 v3, 0x0
-
-    :goto_1
-    if-ge v3, v2, :cond_4
-
-    aget-object v4, v1, v3
-
-    const/16 v7, 0x7c
-
-    invoke-virtual {v4, v7}, Ljava/lang/String;->indexOf(I)I
-
-    move-result v7
-
-    invoke-virtual {v4, v11, v7}, Ljava/lang/String;->substring(II)Ljava/lang/String;
-
-    move-result-object v8
-
-    aput-object v8, v6, v3
-
-    add-int/lit8 v7, v7, 0x1
-
-    invoke-virtual {v4, v7}, Ljava/lang/String;->substring(I)Ljava/lang/String;
-
-    move-result-object v8
-
-    aput-object v8, v5, v3
-
-    add-int/lit8 v3, v3, 0x1
-
-    goto :goto_1
-
-    :cond_4
-    new-instance v4, Ljava/lang/StringBuilder;
-
-    invoke-direct {v4}, Ljava/lang/StringBuilder;-><init>()V
-
-    const-string v7, "\u9009\u62e9\u6a21\u62df\u5668\uff08"
-
-    invoke-virtual {v4, v7}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    move-result-object v4
-
-    invoke-virtual {v4, v9}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    move-result-object v4
-
-    const-string v7, "\uff09"
-
-    invoke-virtual {v4, v7}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
-
-    move-result-object v4
-
-    invoke-virtual {v4}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
-
-    move-result-object v4
-
-    new-instance v7, Landroid/app/AlertDialog$Builder;
-
-    invoke-direct {v7, p0}, Landroid/app/AlertDialog$Builder;-><init>(Landroid/content/Context;)V
-
-    invoke-virtual {v7, v4}, Landroid/app/AlertDialog$Builder;->setTitle(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder;
-
-    move-result-object v7
-
-    new-instance v8, Lcom/retrofront/NativeActivity$NgpEmuPickListener;
-
-    invoke-direct {v8, p0, p2, v6}, Lcom/retrofront/NativeActivity$NgpEmuPickListener;-><init>(Lcom/retrofront/NativeActivity;Lcom/retrofront/data/Game;[Ljava/lang/String;)V
-
-    invoke-virtual {v7, v5, v8}, Landroid/app/AlertDialog$Builder;->setItems([Ljava/lang/CharSequence;Landroid/content/DialogInterface$OnClickListener;)Landroid/app/AlertDialog$Builder;
-
-    move-result-object v7
-
-    invoke-virtual {v7}, Landroid/app/AlertDialog$Builder;->show()Landroid/app/AlertDialog;
-
-    const/4 v0, 0x1
-
-    return v0
 .end method
 
 .method private static final onCreate$lambda$25$lambda$24$lambda$22(Lcom/retrofront/NativeActivity;Ljava/lang/String;Landroid/view/View;)V
@@ -26684,7 +26604,7 @@
 
     const-string v15, "\u6b63\u5728\u542f\u52a8: "
 
-    if-nez v12, :cond_13
+    if-nez v12, :cond_12
 
     :try_start_2
     const-string v12, "androidapps"
@@ -26693,7 +26613,7 @@
 
     move-result v12
 
-    if-nez v12, :cond_13
+    if-nez v12, :cond_12
 
     const-string v12, "\u5b89\u5353APP"
 
@@ -26701,7 +26621,7 @@
 
     move-result v12
 
-    if-nez v12, :cond_13
+    if-nez v12, :cond_12
 
     .line 1754
     invoke-virtual/range {p1 .. p1}, Lcom/retrofront/data/Game;->getPath()Ljava/lang/String;
@@ -26724,7 +26644,7 @@
 
     move-result v12
 
-    if-nez v12, :cond_14
+    if-nez v12, :cond_13
 
     invoke-virtual/range {p1 .. p1}, Lcom/retrofront/data/Game;->getPath()Ljava/lang/String;
 
@@ -26736,7 +26656,7 @@
 
     move-result v12
 
-    if-nez v12, :cond_14
+    if-nez v12, :cond_13
 
     invoke-virtual/range {p1 .. p1}, Lcom/retrofront/data/Game;->getPath()Ljava/lang/String;
 
@@ -27054,16 +26974,17 @@
 
     invoke-static {v9, v13}, Landroid/util/Log;->d(Ljava/lang/String;Ljava/lang/String;)I
 
+    # NGP45HT: 多个模拟器时先让玩家选，选完由回调启动，本方法直接返回
     invoke-direct {v1, v10, v2}, Lcom/retrofront/NativeActivity;->ngpEmuChooser(Ljava/lang/String;Lcom/retrofront/data/Game;)Z
 
     move-result v13
 
-    if-eqz v13, :cond_b
+    if-eqz v13, :ngp_chooser_go
 
     return-void
 
+    :ngp_chooser_go
     .line 1798
-    :cond_b
     invoke-direct {v1, v10}, Lcom/retrofront/NativeActivity;->getStandaloneEmulator(Ljava/lang/String;)Ljava/lang/String;
 
     move-result-object v13
@@ -27097,14 +27018,14 @@
     .catch Ljava/lang/Exception; {:try_start_8 .. :try_end_8} :catch_0
 
     .line 1800
-    if-eqz v13, :cond_c
+    if-eqz v13, :cond_b
 
     :try_start_9
     invoke-direct {v1, v13}, Lcom/retrofront/NativeActivity;->isPackageInstalled(Ljava/lang/String;)Z
 
     move-result v10
 
-    if-eqz v10, :cond_c
+    if-eqz v10, :cond_b
 
     .line 1802
     invoke-direct {v1, v13, v2}, Lcom/retrofront/NativeActivity;->launchWithStandaloneEmulator(Ljava/lang/String;Lcom/retrofront/data/Game;)V
@@ -27148,8 +27069,8 @@
     return-void
 
     .line 1806
-    :cond_c
-    if-eqz v13, :cond_d
+    :cond_b
+    if-eqz v13, :cond_c
 
     .line 1807
     const-string v10, "startGame: standalone emulator not installed, falling back to RA core"
@@ -27159,7 +27080,7 @@
     .catch Ljava/lang/Exception; {:try_start_9 .. :try_end_9} :catch_4
 
     .line 1811
-    :cond_d
+    :cond_c
     :try_start_a
     invoke-direct {v1, v12}, Lcom/retrofront/NativeActivity;->getPlatformCore(Ljava/lang/String;)Ljava/lang/String;
 
@@ -27332,12 +27253,12 @@
 
     move-result-object v3
 
-    :cond_e
+    :cond_d
     invoke-interface {v3}, Ljava/util/Iterator;->hasNext()Z
 
     move-result v4
 
-    if-eqz v4, :cond_f
+    if-eqz v4, :cond_e
 
     invoke-interface {v3}, Ljava/util/Iterator;->next()Ljava/lang/Object;
 
@@ -27357,13 +27278,13 @@
 
     move-result v13
 
-    if-eqz v13, :cond_e
+    if-eqz v13, :cond_d
 
     invoke-virtual {v8}, Ljava/io/File;->isFile()Z
 
     move-result v13
 
-    if-eqz v13, :cond_e
+    if-eqz v13, :cond_d
 
     .line 1830
     move-object v2, v4
@@ -27374,7 +27295,7 @@
     .line 1835
     .end local v4    # "candidate":Ljava/lang/String;
     .end local v8    # "f":Ljava/io/File;
-    :cond_f
+    :cond_e
     new-instance v3, Ljava/lang/StringBuilder;
 
     invoke-direct {v3}, Ljava/lang/StringBuilder;-><init>()V
@@ -27467,7 +27388,7 @@
 
     move-result v3
 
-    if-nez v3, :cond_10
+    if-nez v3, :cond_f
 
     .line 1840
     invoke-virtual {v11}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;
@@ -27535,22 +27456,7 @@
     return-void
 
     .line 1846
-    :cond_10
-
-    invoke-virtual {v11}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;
-
-    move-result-object v0
-
-    invoke-static {v1, v0}, Lcom/retrofront/CoreOptions;->resolveOverride(Landroid/content/Context;Ljava/lang/String;)Ljava/lang/String;
-
-    move-result-object v0
-
-    if-eqz v0, :cond_coreov_end
-
-    move-object v2, v0
-
-    :cond_coreov_end
-
+    :cond_f
     const/4 v5, 0x1
 
     new-instance v3, Landroid/content/Intent;
@@ -27574,15 +27480,15 @@
 
     move-result v4
 
-    if-lez v4, :cond_11
+    if-lez v4, :cond_10
 
     goto :goto_6
 
-    :cond_11
+    :cond_10
     const/4 v5, 0x0
 
     :goto_6
-    if-eqz v5, :cond_12
+    if-eqz v5, :cond_11
 
     .line 1850
     const-string v4, "LIBRETRO"
@@ -27590,7 +27496,7 @@
     invoke-virtual {v3, v4, v2}, Landroid/content/Intent;->putExtra(Ljava/lang/String;Ljava/lang/String;)Landroid/content/Intent;
 
     .line 1852
-    :cond_12
+    :cond_11
     const-string v4, "ROM"
 
     invoke-virtual {v11}, Ljava/io/File;->getAbsolutePath()Ljava/lang/String;
@@ -27711,13 +27617,13 @@
 
     .line 1753
     .local v10, "currentPid":Ljava/lang/String;
-    :cond_13
+    :cond_12
     move-object/from16 v17, v10
 
     .line 1755
     .end local v10    # "currentPid":Ljava/lang/String;
     .restart local v17    # "currentPid":Ljava/lang/String;
-    :cond_14
+    :cond_13
     :goto_7
     nop
 
@@ -27737,7 +27643,7 @@
 
     .line 1757
     .local v0, "launchIntent":Landroid/content/Intent;
-    if-eqz v0, :cond_15
+    if-eqz v0, :cond_14
 
     .line 1758
     const/high16 v2, 0x10000000
@@ -27830,7 +27736,7 @@
     return-void
 
     .line 1766
-    :cond_15
+    :cond_14
     move-object/from16 v4, p1
 
     move-object v2, v1

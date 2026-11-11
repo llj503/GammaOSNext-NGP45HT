@@ -101,19 +101,6 @@ AzaharSf 的 `romPath(Intent)` 判定顺序是：
 并用 `sys.gammaos.azahar_nano.from_app` 区分"从 Android 来的"和"从 nano 前端来的"：
 前者会话结束后不拉 gammaos-nano，让 AzaharSf 自己 finish 回 LANGOS。
 
-## v3.6 逐游戏切换 RetroArch 核心
-
-3.5-emupick 及以前只能按平台默认核心启动。3.6 在游戏详情页“启动游戏”上方
-加了一行“游戏核心”，按 `game.getPlatformId()` 过滤出该平台能用的核心；
-选择按 ROM 完整路径存进 `langos_core_overrides.xml`，启动时只替换
-RetroArch 的 `LIBRETRO` extra，不改全局配置。选“自动”删除覆盖。
-
-核心清单优先扫共享存储里的 `RetroArch/cores`，为空时用 APK 内置的 174 个
-核心名（LANGOS 读不了 RetroArch 私有目录，也不要用 `su`）。
-兼容核心不足 2 个的平台（3DS、PS2、PSP 等）不显示这一行。
-
-实现、平台白名单与实测记录见 `../../../doc/ngp45ht/LANGOS-core-picker.md`。
-
 ## 改完目录后怎么让它重新扫
 
 LANGOS 不会自动发现新目录，必须手动触发：
