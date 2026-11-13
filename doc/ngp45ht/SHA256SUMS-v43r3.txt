@@ -1,0 +1,27 @@
+# v43r3 镜像校验清单（2026-11-13）
+# 修复「刷机后没有 RetroArch 等 7 个 apps.list 应用」：
+#   ① provisioning flags 抢先写导致 setup.sh 从不运行
+#   ② 镜像缺 zstd，setup.sh 的 8 个 .zst 解包全部失败
+# 基于 v43r2 只改 p4 的 /system/bin/zstd 与 p5 的 /bin/ngp-fixup.sh
+
+96182e4b599329ca55f110dd817bba515d6d75a117572931c04dfdad49a38ab2  GammaOSCore-NGP45HT-20261113-v43r3.img.xz
+md5      c8538698196838519a87e082640de77e  GammaOSCore-NGP45HT-20261113-v43r3.img.xz
+
+# 解压后 .img 校验（xz -t 通过；xz -dc | md5sum 与裸镜像一致）
+md5      6aec2dab788a47bb17bd08c953cb6737  GammaOSCore-NGP45HT-20261113-v43r3.img
+sha256   4460c39ff1b9f3e5bb77f9f2dbfa30c8f6b17525a6d8819edc4fd6f9ea62b732  GammaOSCore-NGP45HT-20261113-v43r3.img
+size     5451564032
+xz-size  2041983764
+
+# 升级 OTA 包（已刷 v43 / v43r2 的机器不用重刷整卡；含新版 fixup + zstd）
+sha256   485528348701bbe4db0ca3b2274116bd049db2414c817bcc1bed8c0fcb5ec109  OTA/v43r3-upgrade-OTA.zip
+md5      8e8b5e1f60d045f0cd3b05de9fe46a3d  OTA/v43r3-upgrade-OTA.zip
+size     541108
+
+# 包内 / 镜像内两个载荷
+md5      03b40a0e639ab57e0b5cb285455c8923  zstd-aarch64-static (system/bin/zstd, 1178456 B)
+sha256   6bb33f6324cfbd7889fe5a1bde5fb366e6db605e29786db42ff4f1f5067365b9  zstd-aarch64-static
+md5      0ee79847ef6328179ace72d8456a50c7  ngp-fixup.sh (vendor/bin/ngp-fixup.sh, 50927 B)
+sha256   3deb9b87d27eff2ec0bf63b7447648141b73309c5238878bf874e10676b26a73  ngp-fixup.sh
+
+# 4 MiB 分块硬比对：差异 10 块（p4=6 / p5=4），范围外 0；GPT 分区表与基线逐字一致

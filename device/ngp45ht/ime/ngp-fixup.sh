@@ -68,11 +68,81 @@ fi
 #     一直是 0，Android 14 的 SettingsHomepageActivity 会
 #     "Device is not provisioned, exiting Settings" 直接 finish。
 #     只在未 provision 时补，正常走完向导的机器不受影响。
+#
+#     v43r3：这段必须排在 ⓪a-0 **之前**。flags 先写好，SetupWizard 就不会
+#     再启动 gammaossetupwizard 服务，⓪a-0 的前台 setup.sh 才能独占执行，
+#     避免两个 setup.sh 并发 pm install / 同时解同一批 tar。
 if [ "$(settings get global device_provisioned 2>/dev/null)" != "1" ]; then
     settings put global device_provisioned 1 >/dev/null 2>&1
     settings put secure user_setup_complete 1 >/dev/null 2>&1
     settings put secure tv_user_setup_complete 1 >/dev/null 2>&1
     log -t $TAG "provisioning flags set (LANGOS home bypasses SetupWizard)"
+fi
+
+# ⓪a-0 v43r3 修「刷机后没有 RetroArch / PPSSPP 等内置模拟器」：
+#     根因：init 只在
+#       on property:sys.boot_completed=1 && property:persist.gammaos.setupwizard_run=1
+#     启动 /system/bin/setup.sh，而 run=1 只有 SetupWizard 会设；上面的 ⓪a-1
+#     把 provisioning flags 写成 1 后 SetupWizard 直接退出，run 永远是 0，
+#     /system/etc/gammaos/apps.list 的 7 个 app（RetroArch、MiXplorer、
+#     Aurora、PPSSPP、DraStic、Flycast、M64Plus）一个都不装。
+#
+#     修法：**前台同步**补跑 setup.sh，跑完才继续，绝不能放后台
+#     （ngp_fixup 是 oneshot，后台任务会被 init 回收 —— v43r2 已踩过）。
+#     判据 /data/setupcompleted 是 setup.sh 收尾时建的目录；已装过的机器
+#     一律跳过，不重解 ROM / 存档，也不强行重装用户自己卸载的 app。
+#
+#     v43r3 新增两个兜底：
+#     ① setup.sh 的 8 个解包步骤全靠 zstd -dc，而 v42/v43 镜像里根本没有
+#        zstd 二进制 —— v43r3 已把静态 aarch64 zstd 注入 /system/bin/。
+#        先探一次，缺了就落盘告警，避免「APK 装上了、核心/配置没铺」的假成功。
+#     ② setup.sh 末尾**无条件** mkdir /data/setupcompleted，即使解包全失败
+#        也会写标记。所以跑完必须复查 7 个包；没齐就删标记，让下次开机
+#        以 FRESH_SETUP=1 整包重试，而不是永远停在半装状态。
+_APPS7="com.retroarch.aarch64 com.mixplorer com.aurora.store org.ppsspp.ppsspp com.dsemu.drastic com.flycast.emulator org.mupen64plusae.v3.fzurita"
+_setup_missing() {
+    _m=""
+    for _p in $_APPS7; do
+        pm path "$_p" >/dev/null 2>&1 || _m="$_m $_p"
+    done
+    echo "$_m"
+}
+_SETUP_LOG=/data/data/org.lineageos.setupwizard/files/gammaos_setup.log
+_STATUS=/data/ngp/setup-status.log
+if [ -x /system/bin/setup.sh ] && [ ! -e /data/setupcompleted ]; then
+    mkdir -p /data/ngp 2>/dev/null
+    echo "$(date) start: apps.list first-boot setup" > "$_STATUS" 2>/dev/null
+    if [ ! -x /system/bin/zstd ]; then
+        log -t $TAG "gammaos setup: FATAL /system/bin/zstd missing, .zst extraction will fail"
+        echo "FATAL: /system/bin/zstd missing" >> "$_STATUS" 2>/dev/null
+    fi
+    if [ "$(getprop init.svc.gammaossetupwizard 2>/dev/null)" = "running" ]; then
+        log -t $TAG "gammaos setup: upstream service already running, waiting"
+        _n=0
+        while [ "$_n" -lt 600 ] && [ ! -e /data/setupcompleted ]; do
+            sleep 2
+            _n=$((_n + 2))
+        done
+    else
+        log -t $TAG "gammaos setup: running /system/bin/setup.sh (apps.list)"
+        /system/bin/sh /system/bin/setup.sh >/dev/null 2>&1
+        log -t $TAG "gammaos setup: rc=$? completed=$([ -e /data/setupcompleted ] && echo yes || echo no)"
+    fi
+    _AFTER=$(_setup_missing)
+    if [ -z "$_AFTER" ] && [ -e /data/setupcompleted ]; then
+        log -t $TAG "gammaos setup: OK (7/7 apps.list apps installed)"
+        echo "OK: 7/7 apps installed" >> "$_STATUS" 2>/dev/null
+    else
+        log -t $TAG "gammaos setup: INCOMPLETE missing=$_AFTER, clearing marker for retry"
+        echo "INCOMPLETE: missing=$_AFTER" >> "$_STATUS" 2>/dev/null
+        # 标记可能是 setup.sh 在解包失败后无条件建的；删掉才能整包重试。
+        [ -e /data/setupcompleted ] && rm -rf /data/setupcompleted 2>/dev/null
+    fi
+    [ -f "$_SETUP_LOG" ] && log -t $TAG "gammaos setup log: $_SETUP_LOG"
+else
+    # 已完成首启的机器只做观测，不干预：用户主动卸载 app 不该被强制装回来。
+    _AFTER=$(_setup_missing)
+    [ -n "$_AFTER" ] && log -t $TAG "gammaos setup: completed machine missing=$_AFTER (user action, left alone)"
 fi
 
 # ⓪a 默认桌面：固定为 LANGOS（com.retrofront）。

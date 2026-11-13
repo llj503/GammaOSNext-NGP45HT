@@ -32,7 +32,7 @@ case "$PKG" in update-*) ;; *) echo "package name must start with 'update-'" >&2
 case "$PKG" in *[!A-Za-z0-9._-]*) echo "illegal package name: $PKG" >&2; exit 1 ;; esac
 REBOOT=${OTA_REBOOT:-1}
 
-ALL="LANGOS.apk Vita3K-Plus-v1.4.apk ngp-fixup.sh ngp-ota.sh vita3k-plus-seed.tar.xz"
+ALL="LANGOS.apk Vita3K-Plus-v1.4.apk ngp-fixup.sh ngp-ota.sh zstd vita3k-plus-seed.tar.xz"
 
 # 逻辑载荷名 -> "系统内相对路径 mode uid gid"
 dest_of() {
@@ -41,6 +41,7 @@ dest_of() {
         Vita3K-Plus-v1.4.apk)     echo "vendor/etc/ngp/emulators/Vita3K-Plus-v1.4.apk 0644 0 0" ;;
         ngp-fixup.sh)             echo "vendor/bin/ngp-fixup.sh 0755 0 2000" ;;
         ngp-ota.sh)               echo "vendor/bin/ngp-ota.sh 0755 0 2000" ;;
+        zstd)                     echo "system/bin/zstd 0755 0 2000" ;;
         vita3k-plus-seed.tar.xz)  echo "system/etc/ngp/vita3k/vita3k-plus-seed.tar.xz 0644 0 0" ;;
         *) return 1 ;;
     esac
@@ -67,6 +68,12 @@ src_of() {
             done ;;
         ngp-ota.sh)
             for c in "$IB/ngp-ota.sh" "$TREE/scripts/ngp-ota.sh"; do
+                [ -s "$c" ] && { printf '%s\n' "$c"; return 0; }
+            done ;;
+        zstd)
+            # NDK r27c 交叉编译的 aarch64 静态 zstd 1.5.7；v43r3 起镜像自带，
+            # 由 build_v43r3.sh 落到 /system/bin/zstd。
+            for c in "$IB/zstd-aarch64-static" "$IB/zstd" "$TREE/bin/zstd-aarch64-static"; do
                 [ -s "$c" ] && { printf '%s\n' "$c"; return 0; }
             done ;;
         vita3k-plus-seed.tar.xz)
