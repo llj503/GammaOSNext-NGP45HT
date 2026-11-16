@@ -9,8 +9,22 @@ service ngp_fixup /system/bin/sh /vendor/bin/ngp-fixup.sh
     disabled
     seclabel u:r:shell:s0
 
+# v43r4：首启欢迎向导的后置收尾。
+#   SetupWizard 活跃期间 ngp_fixup 不抢 HOME、不写 provisioning flags、
+#   不抢跑 setup.sh；这个独立 oneshot 服务等向导走完（或超时兜底）后，
+#   把 HOME / rom_root 交回 LANGOS，并保证 apps.list 的 7 个 app 装齐。
+#   必须是 init 直接管的服务 —— ngp_fixup 是 oneshot，内部 & 后台任务会被回收。
+service ngp_postwizard /system/bin/sh /vendor/bin/ngp-fixup.sh --postwizard
+    class late_start
+    user root
+    group root shell
+    oneshot
+    disabled
+    seclabel u:r:shell:s0
+
 on property:sys.boot_completed=1
     start ngp_fixup
+    start ngp_postwizard
 
 # 性能统计守护进程（帧率来源）：init 直接守护，进程退出自动重启。
 # seclabel 用 shell —— 与 AOSP 的 console 服务同款做法，adb shell 里已实测

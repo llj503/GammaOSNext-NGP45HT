@@ -32,7 +32,7 @@ case "$PKG" in update-*) ;; *) echo "package name must start with 'update-'" >&2
 case "$PKG" in *[!A-Za-z0-9._-]*) echo "illegal package name: $PKG" >&2; exit 1 ;; esac
 REBOOT=${OTA_REBOOT:-1}
 
-ALL="LANGOS.apk Vita3K-Plus-v1.4.apk ngp-fixup.sh ngp-ota.sh zstd vita3k-plus-seed.tar.xz"
+ALL="LANGOS.apk Vita3K-Plus-v1.4.apk ngp-fixup.sh ngp-fixup.rc ngp-ota.sh zstd vita3k-plus-seed.tar.xz"
 
 # 逻辑载荷名 -> "系统内相对路径 mode uid gid"
 dest_of() {
@@ -40,6 +40,7 @@ dest_of() {
         LANGOS.apk)               echo "vendor/etc/ngp/LANGOS.apk 0644 0 0" ;;
         Vita3K-Plus-v1.4.apk)     echo "vendor/etc/ngp/emulators/Vita3K-Plus-v1.4.apk 0644 0 0" ;;
         ngp-fixup.sh)             echo "vendor/bin/ngp-fixup.sh 0755 0 2000" ;;
+        ngp-fixup.rc)             echo "vendor/etc/init/ngp-fixup.rc 0644 0 0" ;;
         ngp-ota.sh)               echo "vendor/bin/ngp-ota.sh 0755 0 2000" ;;
         zstd)                     echo "system/bin/zstd 0755 0 2000" ;;
         vita3k-plus-seed.tar.xz)  echo "system/etc/ngp/vita3k/vita3k-plus-seed.tar.xz 0644 0 0" ;;
@@ -64,6 +65,10 @@ src_of() {
         ngp-fixup.sh)
             for c in "$IB/ngp-fixup.sh" "$IB/ngp-fixup-v43.sh" \
                      "$TREE/ime/ngp-fixup.sh"; do
+                [ -s "$c" ] && { printf '%s\n' "$c"; return 0; }
+            done ;;
+        ngp-fixup.rc)
+            for c in "$IB/ngp-fixup.rc" "$TREE/ime/ngp-fixup.rc"; do
                 [ -s "$c" ] && { printf '%s\n' "$c"; return 0; }
             done ;;
         ngp-ota.sh)

@@ -17,6 +17,129 @@
 
 TAG=ngp-fixup
 
+# ---------------------------------------------------------------------------
+# v43r4：恢复首次开机的欢迎向导（LineageSetupWizard）
+#
+# 原厂链路（镜像里完整存在，v42 及更早走的就是这条）：
+#   开机 device_provisioned=0 → SetupWizard 接管 HOME，显示欢迎/语言/Wi-Fi
+#   → 用户走完 → SetupWizard 设 persist.gammaos.setupwizard_run=1
+#   → init 起 gammaossetupwizard 服务跑 /system/bin/setup.sh（装 apps.list
+#     的 7 个 app + 用 zstd 解开核心/配置/ROM），期间向导显示安装进度页
+#   → setup.sh 设 done=1 → SetupWizard 写 provisioning flags → 进桌面。
+#
+# v43 的 ⓪a-1 在 boot_completed 就抢写 flags=1，向导判定「已完成」直接退出；
+# v43r3 为修「7 个 app 全不装」改成 ngp_fixup 前台补跑 setup.sh，但**仍然
+# 没有欢迎界面**，语言和网络只能事后进设置里改。
+#
+# v43r4 恢复原厂链路：
+#   * 向导活跃时不写 flags、不抢 HOME、不启动 LANGOS、不抢跑 setup.sh；
+#   * 新增 ngp_postwizard 服务（本脚本 --postwizard 分支），在向导完成后把
+#     HOME / rom_root 交回 LANGOS，并对「向导缺席 / 安装链没触发」做兜底；
+#   * ⓪c 显示方向锁定等与向导无关的动作照常执行（向导界面本身会倒转 180°）。
+# ---------------------------------------------------------------------------
+_WIZ_PKG=org.lineageos.setupwizard
+_APPS7="com.retroarch.aarch64 com.mixplorer com.aurora.store org.ppsspp.ppsspp com.dsemu.drastic com.flycast.emulator org.mupen64plusae.v3.fzurita"
+
+_setup_missing() {
+    _m=""
+    for _p in $_APPS7; do
+        pm path "$_p" >/dev/null 2>&1 || _m="$_m $_p"
+    done
+    echo "$_m"
+}
+
+# 后置服务入口：由 /vendor/etc/init/ngp-fixup.rc 的 ngp_postwizard 调用。
+# 必须是 init 直接管的独立服务 —— ngp_fixup 是 oneshot，在里面用 & 起后台
+# 等待任务会被 init 回收（v43r2 首启固件不播种就是同一个坑）。
+if [ "${1:-}" = "--postwizard" ]; then
+    _PLOG=/data/ngp/welcome-status.log
+    mkdir -p /data/ngp 2>/dev/null
+    echo "$(date) postwizard start" > "$_PLOG" 2>/dev/null
+
+    # ① 等 SetupWizard 走完。user_setup_complete / device_provisioned 由它
+    #    （或 SettingsProvider）写入。最多 10 分钟；缺席/卡死走下面的兜底，
+    #    不让机器停在「无 HOME、设置一闪就退」的状态。
+    _n=0
+    while [ "$_n" -lt 600 ]; do
+        [ "$(settings get secure user_setup_complete 2>/dev/null)" = "1" ] && break
+        [ "$(settings get global device_provisioned 2>/dev/null)" = "1" ] && break
+        sleep 2
+        _n=$((_n + 2))
+    done
+    echo "$(date) wizard wait=${_n}s complete=$(settings get secure user_setup_complete 2>/dev/null)" >> "$_PLOG" 2>/dev/null
+
+    # ② 补 provisioning flags：向导正常跑完时它自己已写；这里只兜底
+    #    「向导没起来 / 超时」，避免 Android 14 的 Settings 一闪就退。
+    if [ "$(settings get global device_provisioned 2>/dev/null)" != "1" ]; then
+        settings put global device_provisioned 1 >/dev/null 2>&1
+        settings put secure user_setup_complete 1 >/dev/null 2>&1
+        settings put secure tv_user_setup_complete 1 >/dev/null 2>&1
+        echo "fallback: provisioning flags set" >> "$_PLOG" 2>/dev/null
+    fi
+
+    # ③ 给原厂安装链一个启动窗口（run=1 由 SetupWizard 设，init 因此起
+    #    gammaossetupwizard），再判需不需要前台补跑 setup.sh。
+    _w=0
+    while [ "$_w" -lt 60 ]; do
+        [ -e /data/setupcompleted ] && break
+        [ "$(getprop persist.gammaos.setupwizard_run 2>/dev/null)" = "1" ] && break
+        [ "$(getprop init.svc.gammaossetupwizard 2>/dev/null)" = "running" ] && break
+        sleep 2
+        _w=$((_w + 2))
+    done
+    if [ "$(getprop init.svc.gammaossetupwizard 2>/dev/null)" = "running" ]; then
+        _m=0
+        while [ "$_m" -lt 900 ] && [ ! -e /data/setupcompleted ]; do
+            sleep 2
+            _m=$((_m + 2))
+        done
+    fi
+    if [ -x /system/bin/setup.sh ] && [ ! -e /data/setupcompleted ]; then
+        echo "fallback: running /system/bin/setup.sh" >> "$_PLOG" 2>/dev/null
+        /system/bin/sh /system/bin/setup.sh >/dev/null 2>&1
+    fi
+    _AFTER=$(_setup_missing)
+    if [ -z "$_AFTER" ] && [ -e /data/setupcompleted ]; then
+        echo "OK: 7/7 apps installed" >> "$_PLOG" 2>/dev/null
+    else
+        echo "INCOMPLETE: missing=$_AFTER" >> "$_PLOG" 2>/dev/null
+        [ -e /data/setupcompleted ] && rm -rf /data/setupcompleted 2>/dev/null
+    fi
+
+    # ④ 向导结束后才把桌面交回 LANGOS（向导期间绝不抢 HOME）。
+    if pm path com.retrofront >/dev/null 2>&1; then
+        cmd package set-home-activity --user 0 com.retrofront/.NativeActivity >/dev/null 2>&1
+        appops set com.retrofront MANAGE_EXTERNAL_STORAGE allow >/dev/null 2>&1
+        echo "home -> com.retrofront/.NativeActivity" >> "$_PLOG" 2>/dev/null
+    fi
+
+    # ⑤ ⑫a：LANGOS 的 rom_root 短路径（v42 起）。首次开机要先启动一次
+    #    LANGOS 生成 shared_prefs 再改；向导期间不能启动 LANGOS，挪到这里。
+    LPREF=/data/user/0/com.retrofront/shared_prefs/retrofront.xml
+    if [ ! -e /storage/EEROMS ]; then
+        mkdir -p /storage/EEROMS 2>/dev/null
+        chown 1023:1078 /storage/EEROMS 2>/dev/null
+        chmod 2770 /storage/EEROMS 2>/dev/null
+    fi
+    if pm path com.retrofront >/dev/null 2>&1 && [ ! -f "$LPREF" ]; then
+        am start -n com.retrofront/.NativeActivity >/dev/null 2>&1
+        sleep 3
+    fi
+    if [ -f "$LPREF" ]; then
+        _lu=$(stat -c %u "$LPREF" 2>/dev/null)
+        _lg=$(stat -c %g "$LPREF" 2>/dev/null)
+        if ! grep -q '<string name="rom_root">/storage/EEROMS</string>' "$LPREF" 2>/dev/null; then
+            sed -i 's#<string name="rom_root">[^<]*</string>#<string name="rom_root">/storage/EEROMS</string>#' "$LPREF" 2>/dev/null
+            [ -n "$_lu" ] && chown "$_lu:$_lg" "$LPREF" 2>/dev/null
+            chmod 660 "$LPREF" 2>/dev/null
+            am force-stop com.retrofront >/dev/null 2>&1
+            am start -n com.retrofront/.NativeActivity >/dev/null 2>&1
+        fi
+    fi
+    echo "$(date) postwizard done" >> "$_PLOG" 2>/dev/null
+    exit 0
+fi
+
 # V38: 把汉化版 azahar-nano 提前 bind 上。原来的第 ⑨ 段在脚本末尾，
 # boot_completed 后如果用户很快点开 3DS，服务可能先用 /system 里的
 # 英文原版启动；之后再 bind 只影响新进程，当前会话菜单仍是英文。
@@ -63,16 +186,28 @@ if [ -x /vendor/bin/ngp-ota.sh ]; then
     /vendor/bin/ngp-ota.sh
 fi
 
+# v43r4：判断本次开机是否交给 SetupWizard。
+#   判据：向导包在 + 设备未完成 provision + apps.list 首启还没做过。
+#   已完成首启的机器（/data/setupcompleted 在）一律走原 v43r3 路径，
+#   保证 OTA 升级老机器时行为不变。
+_WIZARD_ACTIVE=0
+if [ "$(settings get global device_provisioned 2>/dev/null)" != "1" ] \
+   && [ ! -e /data/setupcompleted ] \
+   && pm path "$_WIZ_PKG" >/dev/null 2>&1; then
+    _WIZARD_ACTIVE=1
+    log -t $TAG "first boot: SetupWizard owns HOME, defer flags/home/setup.sh to ngp_postwizard"
+fi
+
 # ⓪a-1 v43 修「设置一闪就退」（源自 PokectAis v43）：
 #     LANGOS 抢了 home 后 LineageOS 的 SetupWizard 不再运行，device_provisioned
 #     一直是 0，Android 14 的 SettingsHomepageActivity 会
 #     "Device is not provisioned, exiting Settings" 直接 finish。
 #     只在未 provision 时补，正常走完向导的机器不受影响。
 #
-#     v43r3：这段必须排在 ⓪a-0 **之前**。flags 先写好，SetupWizard 就不会
-#     再启动 gammaossetupwizard 服务，⓪a-0 的前台 setup.sh 才能独占执行，
-#     避免两个 setup.sh 并发 pm install / 同时解同一批 tar。
-if [ "$(settings get global device_provisioned 2>/dev/null)" != "1" ]; then
+#     v43r4：向导活跃时**不能**写，否则 SetupWizard 判定已完成直接退出，
+#     欢迎/语言/Wi-Fi 页就没了；改由 ngp_postwizard 在向导完成后兜底补写。
+#     只在「向导缺席或首启已完成」时补，避免两个 setup.sh 并发。
+if [ "$_WIZARD_ACTIVE" = 0 ] && [ "$(settings get global device_provisioned 2>/dev/null)" != "1" ]; then
     settings put global device_provisioned 1 >/dev/null 2>&1
     settings put secure user_setup_complete 1 >/dev/null 2>&1
     settings put secure tv_user_setup_complete 1 >/dev/null 2>&1
@@ -99,17 +234,12 @@ fi
 #     ② setup.sh 末尾**无条件** mkdir /data/setupcompleted，即使解包全失败
 #        也会写标记。所以跑完必须复查 7 个包；没齐就删标记，让下次开机
 #        以 FRESH_SETUP=1 整包重试，而不是永远停在半装状态。
-_APPS7="com.retroarch.aarch64 com.mixplorer com.aurora.store org.ppsspp.ppsspp com.dsemu.drastic com.flycast.emulator org.mupen64plusae.v3.fzurita"
-_setup_missing() {
-    _m=""
-    for _p in $_APPS7; do
-        pm path "$_p" >/dev/null 2>&1 || _m="$_m $_p"
-    done
-    echo "$_m"
-}
+# _APPS7 / _setup_missing() 定义在脚本顶部（--postwizard 分支共用）。
 _SETUP_LOG=/data/data/org.lineageos.setupwizard/files/gammaos_setup.log
 _STATUS=/data/ngp/setup-status.log
-if [ -x /system/bin/setup.sh ] && [ ! -e /data/setupcompleted ]; then
+# v43r4：向导活跃时交给原厂链路（SetupWizard → run=1 → init 起 setup.sh），
+# 这里绝不同时跑，避免两个 setup.sh 并发 pm install / 解同一批 .zst。
+if [ "$_WIZARD_ACTIVE" = 0 ] && [ -x /system/bin/setup.sh ] && [ ! -e /data/setupcompleted ]; then
     mkdir -p /data/ngp 2>/dev/null
     echo "$(date) start: apps.list first-boot setup" > "$_STATUS" 2>/dev/null
     if [ ! -x /system/bin/zstd ]; then
@@ -152,7 +282,9 @@ fi
 # 就退出，等于没人兜底，home 偏好一丢就停在选择框。这里每次开机都显式指定
 # 一次（幂等，成本一条 cmd）。
 # 注意：必须确认包存在再设，指向不存在的组件会让 home 永久解析失败。
-if pm path com.retrofront >/dev/null 2>&1; then
+# v43r4：向导活跃时不设 HOME —— 抢了 HOME 会让 SetupWizard 不显示。
+# 由 ngp_postwizard 在向导完成后设回 LANGOS。
+if [ "$_WIZARD_ACTIVE" = 0 ] && pm path com.retrofront >/dev/null 2>&1; then
     cmd package set-home-activity --user 0 com.retrofront/.NativeActivity >/dev/null 2>&1
     log -t $TAG "home -> com.retrofront/.NativeActivity"
 
@@ -165,7 +297,7 @@ fi
 #   它读不到上次记下的 rom_root 就直接拉起 SAF 目录选择框（开机必现）。
 #   等 public 卷挂载完成后，如果前台仍是 documentsui 的选择页，重启一次
 #   LANGOS —— 实测重启后直接进游戏库，不再弹框。
-if pm path com.retrofront >/dev/null 2>&1; then
+if [ "$_WIZARD_ACTIVE" = 0 ] && pm path com.retrofront >/dev/null 2>&1; then
     _i=0
     while [ "$_i" -lt 15 ]; do
         sm list-volumes all 2>/dev/null | grep -q 'public:.*mounted' && break
@@ -793,11 +925,12 @@ fi
 
 # ⑫a LANGOS ROM 根目录用短路径 /storage/EEROMS（v42）
 LPREF=/data/user/0/com.retrofront/shared_prefs/retrofront.xml
-if [ ! -f "$LPREF" ]; then
+# v43r4：向导活跃时不启动/重启 LANGOS（会抢前台），改由 ngp_postwizard 补。
+if [ "$_WIZARD_ACTIVE" = 0 ] && [ ! -f "$LPREF" ]; then
     am start -n com.retrofront/.NativeActivity >/dev/null 2>&1
     sleep 3
 fi
-if [ -f "$LPREF" ]; then
+if [ "$_WIZARD_ACTIVE" = 0 ] && [ -f "$LPREF" ]; then
     _lu=$(stat -c %u "$LPREF" 2>/dev/null)
     _lg=$(stat -c %g "$LPREF" 2>/dev/null)
     if ! grep -q '<string name="rom_root">/storage/EEROMS</string>' "$LPREF" 2>/dev/null; then
